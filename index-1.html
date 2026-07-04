@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Jimz_AI</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0f0e" id="metaThemeColor">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jimz_AI">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- Markdown Parser -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0d0f0e; --panel:#141715; --panel-2:#191d1a; --line:#262b27;
+    --text:#e7ebe6; --text-dim:#8a9188; --accent:#c9a227; --accent-bright:#e6c34a;
+    --accent-dim:#7a6318; --user-bubble:#1c2420; --danger:#e08080;
+    --mono: 'SF Mono', 'JetBrains Mono', 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  
+  /* Light Theme Overrides */
+  body.light-theme {
+    --bg:#f4f5f5; --panel:#ffffff; --panel-2:#f0f2f1; --line:#dce0de;
+    --text:#1a1d1b; --text-dim:#666d69; --accent:#b08d22; --accent-bright:#d1a626;
+    --accent-dim:#d9cdad; --user-bubble:#e6efea; --danger:#d9534f;
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{ height:100%; margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); overscroll-behavior:none; transition: background 0.3s, color 0.3s;}
+  #app{ display:flex; flex-direction:column; height:100dvh; height:100vh; }
+
+  /* ---- Top bar & Navigation ---- */
+  #topbar{ display:flex; align-items:center; gap:10px; padding:calc(env(safe-area-inset-top) + 10px) 14px 10px 14px; background:var(--panel); border-bottom:1px solid var(--line); flex-shrink:0; }
+  .iconbtn{ background:none; border:none; color:var(--text); font-size:20px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px; flex-shrink:0; }
+  .iconbtn:active{background:var(--panel-2);}
+  .brand{ display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
+  .brand-mark{ width:22px; height:22px; border-radius:5px; flex-shrink:0; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
+  .brand-mark img{ width:100%; height:100%; object-fit:cover; }
+  .brand-name{ font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:0.3px;}
+  .brand-sub{ font-family:var(--mono); font-size:10.5px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  #tabbar{ display:flex; background:var(--panel); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); flex-shrink:0; }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 4px 8px; color:var(--text-dim); font-size:11px; font-family:var(--mono); border:none; background:none; }
+  .tab .tab-ic{ font-size:18px; line-height:1; }
+  .tab.active{ color:var(--accent-bright); }
+  .view{ flex:1; min-height:0; display:none; flex-direction:column; }
+  .view.active{ display:flex; }
+
+  /* ---- Chat View & Markdown ---- */
+  #messages{ flex:1; overflow-y:auto; padding:16px 14px 8px; display:flex; flex-direction:column; gap:14px; }
+  .empty-state{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-dim); text-align:center; padding:40px 20px; gap:10px; }
+  .empty-mark{ width:14px; height:14px; border-radius:3px; background:var(--accent-dim); margin-bottom:6px; }
+  .empty-state h2{font-size:15px; font-weight:500; color:var(--text); margin:0; font-family:var(--mono);}
+  
+  .msg-row{display:flex; flex-direction:column; max-width:88%;}
+  .msg-row.user{align-self:flex-end; align-items:flex-end;}
+  .msg-row.assistant{align-self:flex-start; align-items:flex-start;}
+  .msg-role-line{ display:flex; align-items:center; gap:6px; margin-bottom:4px; padding:0 3px; }
+  .msg-role{ font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:0.5px; text-transform:uppercase; }
+  
+  .bubble{ padding:10px 13px; border-radius:14px; font-size:14.5px; line-height:1.5; word-break:break-word; }
+  .msg-row.user .bubble{ background:var(--user-bubble); border:1px solid var(--line); border-bottom-right-radius:4px; white-space:pre-wrap; }
+  .msg-row.assistant .bubble{ background:var(--panel-2); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .msg-row.assistant .bubble.streaming::after{ content:'▊'; color:var(--accent-bright); animation:blink 1s step-start infinite; }
+  @keyframes blink{50%{opacity:0;}}
+  
+  /* Markdown Styles inside Bubble */
+  .bubble p { margin: 0 0 10px 0; }
+  .bubble p:last-child { margin: 0; }
+  .bubble pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); }
+  .bubble code { font-family: var(--mono); background: var(--bg); padding: 2px 4px; border-radius: 4px; font-size: 13px; }
+  .bubble img { max-width: 100%; border-radius: 8px; margin-top: 5px; }
+
+  .msg-actions{ display:flex; gap:4px; margin-top:4px; }
+  .msg-action-btn{ background:none; border:1px solid var(--line); color:var(--text-dim); font-size:10.5px; font-family:var(--mono); padding:3px 8px; border-radius:6px; }
+
+  /* ---- Input Bar & Vision ---- */
+  #inputbar{ display:flex; flex-direction:column; gap:6px; padding:8px 12px calc(env(safe-area-inset-bottom) + 8px); background:var(--panel); border-top:1px solid var(--line); flex-shrink:0; }
+  #imagePreviewContainer { display: none; position: relative; width: 60px; height: 60px; margin-bottom: 5px; }
+  #imagePreview { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+  #removeImgBtn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+  
+  .input-row{ display:flex; align-items:flex-end; gap:8px; }
+  #attachBtn { width:38px; height:38px; border-radius:50%; background:var(--panel-2); color:var(--text); border:1px solid var(--line); flex-shrink:0; font-size:16px; display:flex; align-items:center; justify-content:center; }
+  #textInput{ flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:18px; padding:10px 14px; font-size:15px; font-family:var(--sans); resize:none; max-height:120px; line-height:1.4; }
+  #textInput:focus{outline:none; border-color:var(--accent-dim);}
+  #sendBtn{ width:38px; height:38px; border-radius:50%; background:var(--accent-bright); color:#0d0f0e; border:none; flex-shrink:0; font-size:17px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .input-meta-row{ display:flex; justify-content:space-between; padding:0 4px; }
+  .char-counter{ font-family:var(--mono); font-size:10px; color:var(--text-dim); }
+
+  /* ---- Sidebars & Drawers (Existing Styles) ---- */
+  #sidebar, #modelDrawer { position:fixed; top:0; bottom:0; width:82%; max-width:320px; background:var(--panel); z-index:50; display:flex; flex-direction:column; padding-top:env(safe-area-inset-top); transition:transform .22s ease; }
+  #sidebar { left:0; border-right:1px solid var(--line); transform:translateX(-100%); }
+  #modelDrawer { right:0; border-left:1px solid var(--line); transform:translateX(100%); max-width:300px;}
+  #sidebar.open, #modelDrawer.open {transform:translateX(0);}
+  #overlay, #modelOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:opacity .22s ease; z-index:40; }
+  #overlay.open, #modelOverlay.open{opacity:1; pointer-events:auto;}
+  .sidebar-head, .drawer-head{ padding:16px 14px 10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
+  .sidebar-title{font-family:var(--mono); font-size:13px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase;}
+  #newChatBtn{ background:var(--accent-dim); color:#f5edd6; border:none; border-radius:8px; padding:6px 10px; font-size:13px; font-family:var(--mono); font-weight:600; }
+  #sessionList{flex:1; overflow-y:auto; padding:8px;}
+  .session-item{ display:flex; align-items:center; gap:8px; padding:11px 10px; border-radius:8px; margin-bottom:2px; color:var(--text-dim); font-size:14px; cursor:pointer; }
+  .session-item.active{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
+  .session-item .stitle{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .session-del{ color:var(--text-dim); font-size:14px; padding:3px 6px; border-radius:6px; flex-shrink:0; }
+  .sidebar-foot{ padding:12px 14px calc(env(safe-area-inset-bottom) + 12px); border-top:1px solid var(--line); }
+  .sidebar-foot-btn{ width:100%; background:none; border:1px solid var(--line); color:var(--text-dim); padding:10px; border-radius:8px; font-size:13px; font-family:var(--mono); }
+  
+  .drawer-body{ flex:1; overflow-y:auto; padding:14px; }
+  .drawer-section{ margin-bottom:22px; }
+  .drawer-label{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-bottom:9px; }
+  .segmented{ display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .segmented button{ flex:1; background:var(--panel-2); border:none; color:var(--text-dim); padding:9px 4px; font-size:12px; font-family:var(--mono); border-right:1px solid var(--line); }
+  .segmented button.active{ background:var(--accent-dim); color:#f5edd6; font-weight:700; }
+  .switch{ position:relative; width:42px; height:24px; flex-shrink:0; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch-track{ position:absolute; inset:0; background:var(--line); border-radius:999px; transition:.2s; }
+  .switch-track::before{ content:''; position:absolute; width:18px; height:18px; left:3px; top:3px; background:var(--text-dim); border-radius:50%; transition:.2s; }
+  .switch input:checked + .switch-track{ background:var(--accent-dim); }
+  .switch input:checked + .switch-track::before{ transform:translateX(18px); background:var(--accent-bright); }
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:11px 12px; }
+
+  /* ---- Shared Settings & Dashboard ---- */
+  #settingsScroll, #dashboardScroll { flex:1; overflow-y:auto; padding:16px 14px calc(env(safe-area-inset-bottom) + 16px); }
+  .field{margin-bottom:16px;}
+  .field label{ display:block; font-size:12px; color:var(--text-dim); margin-bottom:5px; font-family:var(--mono); }
+  .field input, .field textarea, .field select { width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:10px 12px; font-size:14px; font-family:var(--mono); }
+  .field textarea{font-family:var(--sans); resize:vertical; min-height:60px;}
+  .field-hint{font-size:11px; color:var(--text-dim); margin-top:4px; line-height:1.4;}
+  .field-row{ display:flex; gap:10px; }
+  #saveSettings { width:100%; background:var(--accent-bright); color:#0d0f0e; border:none; padding:13px; border-radius:10px; font-size:15px; font-weight:700; margin-top:6px; }
+  .settings-divider{ height:1px; background:var(--line); margin:22px 0; }
+  
+  .rot-box { background: rgba(224, 128, 128, 0.05); border: 1px solid var(--danger); padding: 12px; border-radius: 8px; margin-bottom:16px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <button class="iconbtn" id="menuBtn">☰</button>
+    <div class="brand">
+      <div class="brand-mark"><img src="icon-192.png" alt="Jimz_AI"></div>
+      <div class="brand-text">
+        <div class="brand-name">Jimz_AI</div>
+        <div class="brand-sub" id="modelLabel">endpoint belum diset</div>
+      </div>
+    </div>
+    <button class="iconbtn" id="modelDrawerBtn">⚙</button>
+  </div>
+
+  <!-- CHAT VIEW -->
+  <div class="view active" id="view-chat">
+    <div id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-mark"></div>
+        <h2>Jimz_AI Ready</h2>
+        <p>Ketik pesan atau upload gambar untuk mulai.</p>
+      </div>
+    </div>
+
+    <div id="inputbar">
+      <div id="imagePreviewContainer">
+        <img id="imagePreview" src="" alt="preview">
+        <button id="removeImgBtn">✕</button>
+      </div>
+      <div class="input-row">
+        <input type="file" id="imageInput" accept="image/*" style="display:none">
+        <button id="attachBtn">📎</button>
+        <textarea id="textInput" placeholder="Ketik pesan..." rows="1"></textarea>
+        <button id="sendBtn">↑</button>
+      </div>
+      <div class="input-meta-row">
+        <span class="char-counter" id="charCounter">0 char</span>
+        <span class="char-counter" id="effortIndicator"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD VIEW (Disederhanakan untuk ruang kode) -->
+  <div class="view" id="view-dashboard">
+    <div id="dashboardScroll">
+      <h3 style="font-family:var(--mono);">Dashboard aktif. (Fitur token tracker tetap berjalan di background).</h3>
+    </div>
+  </div>
+
+  <!-- SETTINGS VIEW -->
+  <div class="view" id="view-settings">
+    <div id="settingsScroll">
+
+      <div class="field">
+        <label>Tema UI</label>
+        <select id="uiTheme">
+          <option value="dark">Dark Mode (Default)</option>
+          <option value="light">Light Mode</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Base URL</label>
+        <input id="baseUrl" type="text" placeholder="https://api.aivene.com/v1">
+      </div>
+
+      <div class="field">
+        <label>API Key Utama</label>
+        <input id="apiKey" type="password" placeholder="sk-...">
+      </div>
+
+      <div class="field">
+        <label>Model Utama</label>
+        <input id="modelName" type="text" placeholder="gemini-1.5-flash">
+      </div>
+
+      <div class="field">
+        <label>System Prompt Profile</label>
+        <select id="promptProfile">
+          <option value="">-- Kosong --</option>
+          <option value="Kamu adalah asisten AI yang menjawab singkat, padat, dan jelas.">Singkat & Padat</option>
+          <option value="Kamu adalah senior programmer. Berikan kode yang efisien dan jelaskan fungsinya.">Programmer Mode</option>
+          <option value="Kamu adalah teman ngobrol yang asik, gunakan bahasa gaul Indonesia.">Teman Santai</option>
+        </select>
+      </div>
+      
+      <div class="settings-divider"></div>
+
+      <!-- NEW: ROTATION SETTINGS -->
+      <div class="rot-box">
+        <h4 style="margin-top:0; color:var(--danger); font-family:var(--mono);">🔄 API Key Rotation (Fallback)</h4>
+        <div class="toggle-row" style="margin-bottom:10px;">
+          <span class="toggle-row-label">Aktifkan Rotasi API</span>
+          <label class="switch"><input type="checkbox" id="rotToggle"><span class="switch-track"></span></label>
+        </div>
+        <div class="field">
+          <label>Model Khusus Rotasi (Bila Beda)</label>
+          <input id="rotModel" type="text" placeholder="gemini-3.1-pro">
+        </div>
+        <div class="field">
+          <label>Daftar API Key (Maks 10, pisahkan dengan Enter)</label>
+          <textarea id="rotKeys" placeholder="sk-key1...\nsk-key2..."></textarea>
+          <div class="field-hint">Jika error 429, otomatis ganti ke key berikutnya.</div>
+        </div>
+      </div>
+
+      <button id="saveSettings">Simpan Pengaturan</button>
+      <div class="settings-status" id="settingsStatus" style="text-align:center; margin-top:10px; color:var(--accent-bright);"></div>
+    </div>
+  </div>
+
+  <div id="tabbar">
+    <button class="tab active" data-view="chat"><span class="tab-ic">💬</span>Chat</button>
+    <button class="tab" data-view="dashboard"><span class="tab-ic">📊</span>Dashboard</button>
+    <button class="tab" data-view="settings"><span class="tab-ic">⚙</span>Settings</button>
+  </div>
+</div>
+
+<!-- SIDEBARS -->
+<div id="overlay"></div>
+<div id="sidebar">
+  <div class="sidebar-head"><span class="sidebar-title">Sesi</span><button id="newChatBtn">+ Baru</button></div>
+  <div id="sessionList"></div>
+  <div class="sidebar-foot"><button class="sidebar-foot-btn" id="clearAllBtn">Hapus Semua</button></div>
+</div>
+
+<div id="modelOverlay"></div>
+<div id="modelDrawer">
+  <div class="drawer-head"><span class="sidebar-title">Model Opts</span><button class="iconbtn" id="closeModelDrawer">✕</button></div>
+  <div class="drawer-body">
+    <div class="drawer-section">
+      <div class="drawer-label">Thinking Mode</div>
+      <div class="toggle-row">
+        <span>Aktifkan</span>
+        <label class="switch"><input type="checkbox" id="thinkingToggle"><span class="switch-track"></span></label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Init Data ----------
+  let config = JSON.parse(localStorage.getItem('jimzai_config')) || {baseUrl:'', apiKey:'', model:'', theme:'dark', prompt:''};
+  let rotConfig = JSON.parse(localStorage.getItem('jimzai_rotation')) || {enabled: false, model: '', keys: [], currentIndex: 0};
+  let sessions = JSON.parse(localStorage.getItem('jimzai_sessions')) || [];
+  let activeId = localStorage.getItem('jimzai_active_session') || null;
+  let isStreaming = false;
+  let attachedImageBase64 = null; // Untuk Vision
+
+  // DOM Elements
+  const $app = document.body;
+  const $tabs = document.querySelectorAll('.tab');
+  const $views = { chat: document.getElementById('view-chat'), dashboard: document.getElementById('view-dashboard'), settings: document.getElementById('view-settings') };
+  const $messages = document.getElementById('messages');
+  const $textInput = document.getElementById('textInput');
+  const $sendBtn = document.getElementById('sendBtn');
+  
+  // Vision Elements
+  const $attachBtn = document.getElementById('attachBtn');
+  const $imageInput = document.getElementById('imageInput');
+  const $imagePreviewContainer = document.getElementById('imagePreviewContainer');
+  const $imagePreview = document.getElementById('imagePreview');
+  const $removeImgBtn = document.getElementById('removeImgBtn');
+
+  // ---------- Apply Theme ----------
+  function applyTheme(theme) {
+    if(theme === 'light') {
+      $app.classList.add('light-theme');
+      document.getElementById('metaThemeColor').content = "#f4f5f5";
+    } else {
+      $app.classList.remove('light-theme');
+      document.getElementById('metaThemeColor').content = "#0d0f0e";
+    }
+  }
+  applyTheme(config.theme);
+
+  // ---------- Tabs ----------
+  $tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      $tabs.forEach(t => t.classList.remove('active')); tab.classList.add('active');
+      Object.values($views).forEach(v => v.classList.remove('active'));
+      $views[tab.dataset.view].classList.add('active');
+    });
+  });
+
+  // ---------- Vision Handling ----------
+  $attachBtn.addEventListener('click', () => $imageInput.click());
+  $imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        attachedImageBase64 = event.target.result;
+        $imagePreview.src = attachedImageBase64;
+        $imagePreviewContainer.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+  $removeImgBtn.addEventListener('click', () => {
+    attachedImageBase64 = null;
+    $imagePreviewContainer.style.display = 'none';
+    $imageInput.value = '';
+  });
+
+  // ---------- Settings Logic ----------
+  document.getElementById('uiTheme').value = config.theme || 'dark';
+  document.getElementById('baseUrl').value = config.baseUrl;
+  document.getElementById('apiKey').value = config.apiKey;
+  document.getElementById('modelName').value = config.model;
+  document.getElementById('promptProfile').value = config.prompt;
+  
+  document.getElementById('rotToggle').checked = rotConfig.enabled;
+  document.getElementById('rotModel').value = rotConfig.model;
+  document.getElementById('rotKeys').value = rotConfig.keys.join('\n');
+
+  document.getElementById('saveSettings').addEventListener('click', () => {
+    config.theme = document.getElementById('uiTheme').value;
+    config.baseUrl = document.getElementById('baseUrl').value.trim();
+    config.apiKey = document.getElementById('apiKey').value.trim();
+    config.model = document.getElementById('modelName').value.trim();
+    config.prompt = document.getElementById('promptProfile').value;
+    
+    rotConfig.enabled = document.getElementById('rotToggle').checked;
+    rotConfig.model = document.getElementById('rotModel').value.trim();
+    rotConfig.keys = document.getElementById('rotKeys').value.split('\n').map(k => k.trim()).filter(k => k);
+    
+    localStorage.setItem('jimzai_config', JSON.stringify(config));
+    localStorage.setItem('jimzai_rotation', JSON.stringify(rotConfig));
+    
+    applyTheme(config.theme);
+    document.getElementById('modelLabel').textContent = rotConfig.enabled ? `${rotConfig.model} (Rot)` : config.model;
+    
+    const status = document.getElementById('settingsStatus');
+    status.textContent = 'Tersimpan!';
+    setTimeout(() => status.textContent='', 1500);
+  });
+
+  document.getElementById('modelLabel').textContent = rotConfig.enabled ? `${rotConfig.model} (Rot)` : (config.model || 'Set Endpoint');
+
+  // ---------- Chat Logic & Markdown Render ----------
+  function getSession() { return sessions.find(s => s.id === activeId) || createSession(); }
+  function createSession() {
+    const s = { id: 'sess_'+Date.now(), messages: [] };
+    sessions.unshift(s); activeId = s.id;
+    localStorage.setItem('jimzai_active_session', activeId);
+    return s;
+  }
+
+  function appendMessage(role, content, animate=false) {
+    document.getElementById('emptyState').style.display = 'none';
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    
+    // Gunakan Marked.js untuk AI, teks polos untuk User
+    if(role === 'assistant') {
+      bubble.innerHTML = marked.parse(content);
+    } else {
+      bubble.textContent = content; // Fallback plain untuk user
+      // Tampilkan gambar jika user upload (hanya visual UI)
+      if(attachedImageBase64 && animate) {
+        const img = document.createElement('img');
+        img.src = attachedImageBase64;
+        img.style.maxWidth = '200px'; img.style.display = 'block'; img.style.marginTop = '8px';
+        bubble.appendChild(img);
+      }
+    }
+
+    row.appendChild(bubble);
+    $messages.appendChild(row);
+    if(animate) $messages.scrollTop = $messages.scrollHeight;
+    return bubble;
+  }
+
+  $sendBtn.addEventListener('click', async () => {
+    const text = $textInput.value.trim();
+    if((!text && !attachedImageBase64) || isStreaming) return;
+    
+    const s = getSession();
+    
+    // Format pesan (dukung Vision jika ada gambar)
+    let msgContent = text;
+    if (attachedImageBase64) {
+      msgContent = [
+        { type: "text", text: text || "Jelaskan gambar ini" },
+        { type: "image_url", image_url: { url: attachedImageBase64 } }
+      ];
+    }
+
+    s.messages.push({ role: 'user', content: msgContent });
+    appendMessage('user', text, true);
+    
+    $textInput.value = '';
+    $removeImgBtn.click(); // bersihkan gambar
+    
+    await fetchAI(s);
+  });
+
+  async function fetchAI(session) {
+    isStreaming = true;
+    const bubble = appendMessage('assistant', '...', true);
+    bubble.classList.add('streaming');
+    
+    // Siapkan array pesan
+    let apiMessages = [];
+    if(config.prompt) apiMessages.push({role: 'system', content: config.prompt});
+    session.messages.forEach(m => apiMessages.push(m));
+
+    // Cek Mode Rotasi
+    let useRot = rotConfig.enabled && rotConfig.keys.length > 0;
+    let targetModel = useRot ? rotConfig.model : config.model;
+    let poolSize = useRot ? rotConfig.keys.length : 1;
+    let attempts = 0;
+    let success = false;
+    let finalContent = "";
+
+    while(attempts < poolSize && !success) {
+      let currentKey = useRot ? rotConfig.keys[rotConfig.currentIndex] : config.apiKey;
+      
+      try {
+        const resp = await fetch(config.baseUrl + '/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentKey}` },
+          body: JSON.stringify({ model: targetModel, messages: apiMessages })
+        });
+
+        if(!resp.ok) {
+          if(resp.status === 429 && useRot) {
+            console.warn(`Key index ${rotConfig.currentIndex} kena limit. Rotasi...`);
+            rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
+            localStorage.setItem('jimzai_rotation', JSON.stringify(rotConfig));
+            attempts++;
+            continue; // Ulangi loop dengan key baru
+          }
+          throw new Error(`HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        finalContent = data.choices[0].message.content;
+        success = true;
+      } catch (err) {
+        if(!useRot || attempts >= poolSize - 1) {
+          finalContent = `Error: ${err.message}`;
+          break;
+        }
+        attempts++;
+      }
+    }
+
+    bubble.classList.remove('streaming');
+    bubble.innerHTML = marked.parse(finalContent);
+    session.messages.push({role: 'assistant', content: finalContent});
+    localStorage.setItem('jimzai_sessions', JSON.stringify(sessions));
+    isStreaming = false;
+  }
+
+  // Menutup Drawer
+  document.getElementById('overlay').addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'));
+  document.getElementById('menuBtn').addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
+
+})();
+</script>
+</body>
+</html>
