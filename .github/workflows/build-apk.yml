@@ -27,14 +27,6 @@ jobs:
 
       - name: Configure Bubblewrap Paths
         run: |
-          echo "=== Debug Android SDK Paths ==="
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-          echo "Checking ANDROID_HOME directory..."
-          ls -la "$ANDROID_HOME" || echo "ANDROID_HOME does not exist"
-          echo "Checking ANDROID_SDK_ROOT directory..."
-          ls -la "$ANDROID_SDK_ROOT" || echo "ANDROID_SDK_ROOT does not exist"
-          
           mkdir -p ~/.bubblewrap
           SDK_PATH=$ANDROID_HOME
           if [ -z "$SDK_PATH" ]; then
@@ -45,7 +37,16 @@ jobs:
           fi
           echo "Selected SDK_PATH: $SDK_PATH"
           echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$SDK_PATH\"}" > ~/.bubblewrap/config.json
-          cat ~/.bubblewrap/config.json
+          
+          echo "=== ls -la cmdline-tools ==="
+          ls -la "$SDK_PATH/cmdline-tools" || true
+          
+          echo "=== ls -la cmdline-tools subfolders ==="
+          ls -la "$SDK_PATH/cmdline-tools/"* || true
+
+      - name: Bubblewrap Doctor
+        run: |
+          bubblewrap doctor || true
 
       - name: Prepare Signing Key
         env:
