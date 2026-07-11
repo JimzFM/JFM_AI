@@ -71,12 +71,17 @@ jobs:
           keytool -list -v -keystore ./android.keystore -alias android -storepass "$KEYSTORE_PASSWORD" | grep -i sha256
           echo "=========================================================================="
 
+      - name: Update TWA Project
+        run: |
+          # Run update command to generate Android project and checksum non-interactively
+          bubblewrap update --skip-pwa-validation
+
       - name: Build TWA / APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'android_password' }}
         run: |
-          # Use 'yes' to accept android licenses, download SDK and build TWA
-          yes | bubblewrap build --storepass "$KEYSTORE_PASSWORD" --keypass "$KEYSTORE_PASSWORD"
+          # Build TWA non-interactively without piping "yes"
+          bubblewrap build --skip-pwa-validation --storepass "$KEYSTORE_PASSWORD" --keypass "$KEYSTORE_PASSWORD"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
