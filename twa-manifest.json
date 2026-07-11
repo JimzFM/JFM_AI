@@ -1,0 +1,27 @@
+{
+  "twaHost": "jimzfm.github.io",
+  "webManifestUrl": "https://jimzfm.github.io/JFM_AI/manifest.json",
+  "startUrl": "/JFM_AI/index.html",
+  "packageId": "com.jimzfm.jfmai",
+  "name": "JFM AI",
+  "launcherName": "JFM AI",
+  "themeColor": "#0d0f0e",
+  "navigationColor": "#0d0f0e",
+  "navigationColorDark": "#0d0f0e",
+  "backgroundColor": "#0d0f0e",
+  "enableNotifications": false,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionCode": 1,
+  "appVersion": "1.0.0",
+  "orientation": "any",
+  "display": "standalone",
+  "features": {},
+  "alphaDependencies": false,
+  "enableSiteSettingsShortcut": true,
+  "fallbackType": "customtabs",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli"
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.jimzfm.jfmai",
+      "sha256_cert_fingerprints": [
+        "10:B9:94:10:44:A2:3E:99:63:F6:A3:35:E5:A9:39:6F:4D:43:2F:A0:6C:54:99:A2:0E:C8:9C:E3:64:1C:89:D2"
+      ]
+    }
+  }
+]
