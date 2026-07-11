@@ -28,7 +28,14 @@ jobs:
       - name: Configure Bubblewrap Paths
         run: |
           mkdir -p ~/.bubblewrap
-          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_SDK_ROOT\"}" > ~/.bubblewrap/config.json
+          SDK_PATH=$ANDROID_HOME
+          if [ -z "$SDK_PATH" ]; then
+            SDK_PATH=$ANDROID_SDK_ROOT
+          fi
+          if [ -z "$SDK_PATH" ]; then
+            SDK_PATH="/usr/local/lib/android/sdk"
+          fi
+          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$SDK_PATH\"}" > ~/.bubblewrap/config.json
 
       - name: Prepare Signing Key
         env:
