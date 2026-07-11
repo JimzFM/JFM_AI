@@ -28,25 +28,9 @@ jobs:
       - name: Configure Bubblewrap Paths
         run: |
           mkdir -p ~/.bubblewrap
-          SDK_PATH=$ANDROID_HOME
-          if [ -z "$SDK_PATH" ]; then
-            SDK_PATH=$ANDROID_SDK_ROOT
-          fi
-          if [ -z "$SDK_PATH" ]; then
-            SDK_PATH="/usr/local/lib/android/sdk"
-          fi
-          echo "Selected SDK_PATH: $SDK_PATH"
-          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$SDK_PATH\"}" > ~/.bubblewrap/config.json
-          
-          echo "=== ls -la cmdline-tools ==="
-          ls -la "$SDK_PATH/cmdline-tools" || true
-          
-          echo "=== ls -la cmdline-tools subfolders ==="
-          ls -la "$SDK_PATH/cmdline-tools/"* || true
-
-      - name: Bubblewrap Doctor
-        run: |
-          bubblewrap doctor || true
+          # Only configure jdkPath, let Bubblewrap download Android SDK automatically
+          echo "{\"jdkPath\":\"$JAVA_HOME\"}" > ~/.bubblewrap/config.json
+          cat ~/.bubblewrap/config.json
 
       - name: Prepare Signing Key
         env:
@@ -91,7 +75,7 @@ jobs:
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'android_password' }}
         run: |
-          # Use 'yes' to accept android licenses and answer yes to prompts
+          # Use 'yes' to accept android licenses, download SDK and build TWA
           yes | bubblewrap build --storepass "$KEYSTORE_PASSWORD" --keypass "$KEYSTORE_PASSWORD"
 
       - name: Upload APK Artifact
