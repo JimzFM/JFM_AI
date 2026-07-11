@@ -2,7 +2,6 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<!-- FIX: Removed maximum-scale=1.0 and user-scalable=no (accessibility) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jimz_AI</title>
 <link rel="manifest" href="manifest.json">
@@ -11,9 +10,17 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Jimz_AI">
 <link rel="apple-touch-icon" href="icon-192.png">
-<!-- FIX: Pinned version + SRI hash to prevent supply-chain attacks -->
+<!-- marked.js — Markdown parser -->
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"
         integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+"
+        crossorigin="anonymous"></script>
+<!-- highlight.js — Syntax highlighting (Feature #2) -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"
+        integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
         crossorigin="anonymous"></script>
 <style>
   :root{
@@ -22,6 +29,8 @@
     --accent-dim:#7a6318; --user-bubble:#1c2420; --danger:#e08080;
     --mono: 'SF Mono', 'JetBrains Mono', 'Courier New', monospace;
     --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* Feature #5: font size variable */
+    --font-size-base: 15px;
   }
   body.light-theme {
     --bg:#f4f5f5; --panel:#ffffff; --panel-2:#f0f2f1; --line:#dce0de;
@@ -45,7 +54,7 @@
 
   /* ---- Tab bar ---- */
   #tabbar{ display:flex; background:var(--panel); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); flex-shrink:0; }
-  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 4px 8px; color:var(--text-dim); font-size:11px; font-family:var(--mono); border:none; background:none; }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 4px 8px; color:var(--text-dim); font-size:11px; font-family:var(--mono); border:none; background:none; cursor:pointer; }
   .tab .tab-ic{ font-size:18px; line-height:1; }
   .tab.active{ color:var(--accent-bright); }
 
@@ -65,22 +74,35 @@
   .msg-row.assistant{align-self:flex-start; align-items:flex-start;}
   .msg-role-line{ display:flex; align-items:center; gap:6px; margin-bottom:4px; padding:0 3px; }
   .msg-role{ font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:0.5px; text-transform:uppercase; }
-  
-  .bubble{ padding:10px 13px; border-radius:14px; font-size:14.5px; line-height:1.5; word-break:break-word; }
+
+  .bubble{ padding:10px 13px; border-radius:14px; font-size:var(--font-size-base); line-height:1.5; word-break:break-word; }
   .msg-row.user .bubble{ background:var(--user-bubble); border:1px solid var(--line); border-bottom-right-radius:4px; white-space:pre-wrap;}
   .msg-row.assistant .bubble{ background:transparent; border:1px solid var(--line); border-bottom-left-radius:4px; }
   .msg-row.assistant .bubble.streaming::after{ content:'▊'; color:var(--accent-bright); animation:blink 1s step-start infinite; }
   @keyframes blink{50%{opacity:0;}}
   .msg-row.error .bubble{ border-color:#5c2b2b; color:var(--danger); background:#1c1414; }
-  
+
   /* Markdown Fixes */
   .bubble p { margin: 0 0 10px 0; }
   .bubble p:last-child { margin: 0; }
   /* FIX: merged duplicate .bubble pre rules into one */
-  .bubble pre { position: relative; background: var(--panel-2); padding: 10px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); }
+  .bubble pre { position: relative; background: var(--panel-2); padding: 10px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); margin: 0 0 10px 0; }
   .bubble code { font-family: var(--mono); background: var(--panel-2); padding: 2px 4px; border-radius: 4px; font-size: 13px; }
+  .bubble pre code { background: none; padding: 0; font-size: 13px; }
 
-  .msg-actions{ display:flex; gap:6px; margin-top:4px; }
+  /* Feature #2: Syntax highlighting — override hljs theme background to match our panel */
+  .bubble pre code.hljs { background: transparent; padding: 0; font-size: 13px; }
+  .code-lang-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .msg-actions{ display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; }
   .msg-action-btn{ background:none; border:1px solid var(--line); color:var(--text-dim); font-size:10.5px; font-family:var(--mono); padding:3px 8px; border-radius:6px; cursor:pointer; transition: all 0.2s ease; }
   .msg-action-btn:hover{ border-color:var(--text-dim); color:var(--text); background:var(--panel-2); }
   .msg-action-btn:active{ transform:scale(0.95); }
@@ -112,7 +134,7 @@
     padding-top: 6px;
   }
 
-  /* Code block copy button styling */
+  /* Code block copy button */
   .code-copy-btn {
     position: absolute;
     top: 6px;
@@ -128,26 +150,42 @@
     opacity: 0;
     transition: opacity 0.2s ease, background-color 0.2s ease;
   }
-  .bubble pre:hover .code-copy-btn {
-    opacity: 1;
-  }
-  .code-copy-btn:hover {
-    color: var(--text);
-    background: var(--line);
-  }
-  .code-copy-btn:active {
-    transform: scale(0.95);
+  .bubble pre:hover .code-copy-btn { opacity: 1; }
+  .code-copy-btn:hover { color: var(--text); background: var(--line); }
+  .code-copy-btn:active { transform: scale(0.95); }
+
+  /* Feature #1: Image message display */
+  .msg-image {
+    max-width: 100%;
+    max-height: 240px;
+    border-radius: 8px;
+    margin-top: 6px;
+    display: block;
+    object-fit: contain;
+    border: 1px solid var(--line);
   }
 
   /* ---- Input bar ---- */
   #inputbar{ display:flex; flex-direction:column; gap:6px; padding:8px 12px calc(env(safe-area-inset-bottom) + 8px); background:var(--panel); border-top:1px solid var(--line); flex-shrink:0; }
-  .input-row{ display:flex; align-items:flex-end; gap:8px; }
-  #textInput{ flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:18px; padding:10px 14px; font-size:15px; font-family:var(--sans); resize:none; max-height:120px; line-height:1.4; transition: border-color 0.2s ease; }
+  /* Feature #4: Image attach preview strip */
+  #attachPreview { display:none; align-items:center; gap:8px; }
+  .attach-thumb-wrap { position:relative; display:inline-flex; }
+  #attachThumb { height:52px; width:52px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+  #removeAttach { position:absolute; top:-6px; right:-6px; background:var(--danger); color:#fff; border:none; border-radius:50%; width:18px; height:18px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; }
+  .attach-label { font-size:12px; color:var(--text-dim); font-family:var(--mono); }
+
+  .input-row{ display:flex; align-items:flex-end; gap:6px; }
+  #attachBtn { font-size:18px; flex-shrink:0; }
+  #textInput{ flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:18px; padding:10px 14px; font-size:var(--font-size-base); font-family:var(--sans); resize:none; max-height:120px; line-height:1.4; transition: border-color 0.2s ease; }
   #textInput:focus{outline:none; border-color:var(--accent-dim);}
+  /* Feature #1: Send/Stop button — transitions between modes */
   #sendBtn{ width:38px; height:38px; border-radius:50%; background:var(--accent-bright); color:#0d0f0e; border:none; flex-shrink:0; font-size:17px; display:flex; align-items:center; justify-content:center; font-weight:700; cursor:pointer; transition: background-color 0.2s ease, transform 0.1s ease; }
   #sendBtn:hover:not(:disabled){ background:var(--accent); color:var(--text); }
   #sendBtn:active:not(:disabled){ transform:scale(0.92); }
   #sendBtn:disabled{background:var(--line); color:var(--text-dim); cursor:default;}
+  #sendBtn.stop-mode { background: var(--danger); color:#fff; font-size:14px; }
+  #sendBtn.stop-mode:hover { background: #c05050; color:#fff; }
+
   .input-meta-row{ display:flex; justify-content:space-between; padding:0 4px; }
   .char-counter{ font-family:var(--mono); font-size:10px; color:var(--text-dim); }
   .editing-banner{ display:none; align-items:center; justify-content:space-between; background:var(--panel-2); border:1px solid var(--accent-dim); border-radius:8px; padding:6px 10px; font-size:12px; font-family:var(--mono); color:var(--accent-bright); }
@@ -171,6 +209,8 @@
   .session-item.active{ background:var(--panel-2); color:var(--text); border-color:var(--line); }
   .session-item:hover:not(.active){ background:var(--panel-2); opacity:0.8; color:var(--text); }
   .session-item .stitle{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Feature #3: Rename input inside sidebar */
+  .stitle-edit { flex:1; background:var(--panel); border:1px solid var(--accent-dim); color:var(--text); border-radius:5px; padding:2px 6px; font-size:13px; font-family:var(--sans); outline:none; min-width:0; }
   .session-del, .session-export{ color:var(--text-dim); font-size:14px; padding:3px 6px; border-radius:6px; flex-shrink:0; cursor:pointer; transition: all 0.2s ease; }
   .session-del:hover{ background:var(--line); color:var(--danger); }
   .sidebar-foot{ padding:12px 14px calc(env(safe-area-inset-bottom) + 12px); border-top:1px solid var(--line); }
@@ -181,7 +221,7 @@
   .drawer-section{ margin-bottom:22px; }
   .drawer-label{ font-family:var(--mono); font-size:11px; color:var(--text-dim); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:9px; }
   .segmented{ display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
-  .segmented button{ flex:1; background:var(--panel-2); border:none; color:var(--text-dim); padding:9px 4px; font-size:12px; font-family:var(--mono); border-right:1px solid var(--line); }
+  .segmented button{ flex:1; background:var(--panel-2); border:none; color:var(--text-dim); padding:9px 4px; font-size:12px; font-family:var(--mono); border-right:1px solid var(--line); cursor:pointer; }
   .segmented button.active{ background:var(--accent-dim); color:#f5edd6; font-weight:700; }
   .toggle-row{ display:flex; align-items:center; justify-content:space-between; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:11px 12px; }
   .switch{ position:relative; width:42px; height:24px; flex-shrink:0; }
@@ -216,18 +256,24 @@
   #settingsScroll{ flex:1; overflow-y:auto; padding:16px 14px calc(env(safe-area-inset-bottom) + 16px); }
   .field{margin-bottom:16px;}
   .field label{ display:block; font-size:12px; color:var(--text-dim); margin-bottom:5px; font-family:var(--mono); letter-spacing:0.3px; }
-  .field input, .field textarea, .field select{ width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:10px 12px; font-size:14px; font-family:var(--mono); }
+  .field input[type=text], .field input[type=password], .field input[type=number], .field textarea, .field select{ width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:10px 12px; font-size:14px; font-family:var(--mono); }
   .field textarea{font-family:var(--sans); resize:vertical; min-height:60px;}
   .field input:focus, .field textarea:focus, .field select:focus{outline:none; border-color:var(--accent-dim);}
   .field-hint{font-size:11px; color:var(--text-dim); margin-top:4px; line-height:1.4;}
   .field-row{ display:flex; gap:10px; }
   .field-row .field{ flex:1; }
+  /* Feature #5: Font size slider */
+  .field input[type=range] {
+    width:100%; padding:0; background:transparent; border:none;
+    accent-color: var(--accent-bright); height:20px; cursor:pointer;
+  }
+  .font-size-preview { font-size:11px; color:var(--text-dim); margin-top:4px; font-family:var(--sans); }
   #saveSettings{ width:100%; background:var(--accent-bright); color:#0d0f0e; border:none; padding:13px; border-radius:10px; font-size:15px; font-weight:700; margin-top:6px; cursor:pointer; }
   #saveSettings:active{opacity:0.85;}
   .settings-divider{ height:1px; background:var(--line); margin:22px 0; }
   .rot-box { background: rgba(201, 162, 39, 0.05); border: 1px solid var(--accent-dim); padding: 12px; border-radius: 8px; margin-bottom:16px; }
 
-  /* ---- Toast notification (replaces alert()) ---- */
+  /* ---- Toast ---- */
   #toast {
     position: fixed;
     bottom: calc(env(safe-area-inset-bottom) + 80px);
@@ -248,10 +294,7 @@
     text-align: center;
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   }
-  #toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   #toast.toast-error { border-color: var(--danger); color: var(--danger); }
   #toast.toast-success { border-color: var(--accent-dim); color: var(--accent-bright); }
 </style>
@@ -286,8 +329,20 @@
         <span>Mengedit pesan sebelumnya</span>
         <button id="cancelEditBtn">Batal</button>
       </div>
+      <!-- Feature #4: Image attach preview -->
+      <div id="attachPreview">
+        <div class="attach-thumb-wrap">
+          <img id="attachThumb" alt="Lampiran">
+          <button id="removeAttach" aria-label="Hapus lampiran">✕</button>
+        </div>
+        <span class="attach-label" id="attachLabel">Gambar terlampir</span>
+      </div>
       <div class="input-row">
+        <!-- Feature #4: Attach button -->
+        <button class="iconbtn" id="attachBtn" aria-label="Lampirkan gambar" title="Lampirkan gambar (vision model)">📎</button>
+        <input type="file" id="imageInput" accept="image/*" style="display:none">
         <textarea id="textInput" placeholder="Ketik pesan... (Enter kirim, Shift+Enter baris baru)" rows="1"></textarea>
+        <!-- Feature #1: Send/Stop button -->
         <button id="sendBtn" aria-label="Kirim">↑</button>
       </div>
       <div class="input-meta-row">
@@ -312,14 +367,12 @@
         <div class="dash-card"><div class="dash-card-label">Total Pesan</div><div class="dash-card-value" id="dashMsgCount">0</div></div>
         <div class="dash-card"><div class="dash-card-label">Avg/Pesan</div><div class="dash-card-value" id="dashAvgMsg">$0.000000</div></div>
       </div>
-
       <div class="dash-section-title">Harga model aktif (per 1M token)</div>
       <div class="price-table">
         <div class="price-row"><span class="price-row-label">Input</span><span class="price-row-value" id="priceInput">$0</span></div>
         <div class="price-row"><span class="price-row-label">Output</span><span class="price-row-value" id="priceOutput">$0</span></div>
         <div class="price-row"><span class="price-row-label">Cache Read</span><span class="price-row-value" id="priceCache">$0</span></div>
       </div>
-
       <div class="dash-section-title">📝 Riwayat sesi</div>
       <div id="historyList"></div>
     </div>
@@ -328,14 +381,20 @@
   <!-- SETTINGS VIEW -->
   <div class="view" id="view-settings">
     <div id="settingsScroll">
-      
-      <!-- FIX: all labels now have for= attributes linking to their inputs (accessibility) -->
+
       <div class="field">
         <label for="uiTheme">Tema Tampilan</label>
         <select id="uiTheme">
           <option value="dark">Dark Mode (Default)</option>
           <option value="light">Light Mode</option>
         </select>
+      </div>
+
+      <!-- Feature #5: Font size slider -->
+      <div class="field">
+        <label for="fontSizeRange">Ukuran Font: <span id="fontSizeValue">15</span>px</label>
+        <input type="range" id="fontSizeRange" min="12" max="20" step="1" value="15">
+        <div class="font-size-preview">Teks ini menampilkan ukuran font saat ini.</div>
       </div>
 
       <div class="field">
@@ -358,7 +417,6 @@
         <textarea id="systemPrompt" placeholder="Kamu adalah asisten yang ringkas dan langsung."></textarea>
       </div>
 
-      <!-- API Key Rotation -->
       <div class="rot-box">
         <h4 style="margin-top:0; color:var(--accent-bright); font-family:var(--mono);">🔄 API Key Rotation (Fallback)</h4>
         <div class="toggle-row" style="margin-bottom:10px;">
@@ -439,8 +497,6 @@
   </div>
 </div>
 
-<!-- Toast notification element -->
-<!-- FIX: role=alert so screen readers announce toast messages -->
 <div id="toast" role="alert" aria-live="polite"></div>
 
 <script>
@@ -451,52 +507,43 @@
   const USD_RATE_DEFAULT = 16300;
 
   // ---------- Storage keys ----------
-  const K_CFG      = 'jimzai_config';
-  const K_SESSIONS = 'jimzai_sessions';
-  const K_ACTIVE   = 'jimzai_active_session';
-  const K_MODELPARAMS = 'jimzai_model_params';
-  const K_PRICING  = 'jimzai_pricing_by_model';
-  const K_ROT      = 'jimzai_rotation';
-  const K_THEME    = 'jimzai_theme';
+  const K_CFG        = 'jimzai_config';
+  const K_SESSIONS   = 'jimzai_sessions';
+  const K_ACTIVE     = 'jimzai_active_session';
+  const K_MODELPARAMS= 'jimzai_model_params';
+  const K_PRICING    = 'jimzai_pricing_by_model';
+  const K_ROT        = 'jimzai_rotation';
+  const K_THEME      = 'jimzai_theme';
+  const K_FONTSIZE   = 'jimzai_fontsize'; // Feature #5
 
   // ---------- Utilities ----------
 
-  /** FIX: Safe JSON.parse — corrupt localStorage won't crash the app */
   function safeJsonParse(str, fallback) {
     try { return str ? JSON.parse(str) : fallback; }
     catch(e) { console.warn('safeJsonParse failed:', e); return fallback; }
   }
 
-  /** FIX: Escape HTML to prevent XSS when inserting user content via innerHTML */
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  /** FIX: Clipboard with execCommand fallback for HTTP / older browsers */
   function copyToClipboard(text, onSuccess) {
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
-    } else {
-      fallbackCopy(text, onSuccess);
-    }
+    } else { fallbackCopy(text, onSuccess); }
   }
   function fallbackCopy(text, onSuccess) {
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
+    document.body.appendChild(ta); ta.focus(); ta.select();
     try { if(document.execCommand('copy')) onSuccess(); } catch(e) {}
     document.body.removeChild(ta);
   }
 
-  /** FIX: Toast replaces alert() — non-blocking, styled */
   let toastTimer = null;
   function showToast(msg, type = 'info', duration = 3000) {
     const el = document.getElementById('toast');
@@ -505,6 +552,35 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.className = ''; }, duration);
   }
+
+  // ---------- Feature #2: Configure marked + highlight.js ----------
+  if (typeof marked !== 'undefined') {
+    marked.use({
+      renderer: {
+        code({ text, lang }) {
+          if (typeof hljs !== 'undefined') {
+            const validLang = lang && hljs.getLanguage(lang) ? lang : null;
+            const highlighted = validLang
+              ? hljs.highlight(text, { language: validLang }).value
+              : hljs.highlightAuto(text).value;
+            const langLabel = lang
+              ? `<span class="code-lang-label">${escapeHtml(lang)}</span>`
+              : '';
+            return `<pre>${langLabel}<code class="hljs${validLang ? ' language-' + validLang : ''}">${highlighted}</code></pre>`;
+          }
+          // Fallback if hljs not loaded
+          return `<pre><code>${escapeHtml(text)}</code></pre>`;
+        }
+      }
+    });
+  }
+
+  // ---------- Feature #5: Font size ----------
+  let fontSize = parseInt(localStorage.getItem(K_FONTSIZE)) || 15;
+  function applyFontSize(size) {
+    document.documentElement.style.setProperty('--font-size-base', size + 'px');
+  }
+  applyFontSize(fontSize);
 
   // ---------- State ----------
   let config       = safeJsonParse(localStorage.getItem(K_CFG), {baseUrl:'', apiKey:'', model:'', systemPrompt:'', usdRate: USD_RATE_DEFAULT});
@@ -516,6 +592,8 @@
   let pricingByModel = safeJsonParse(localStorage.getItem(K_PRICING), {});
   let isStreaming  = false;
   let editingIndex = null;
+  let streamController = null; // Feature #1: for abort
+  let pendingImage = null;     // Feature #4: { base64, mimeType, name }
 
   function currentPricing(){
     const activeModel = (rotConfig.enabled && rotConfig.model) ? rotConfig.model : config.model;
@@ -523,9 +601,7 @@
   }
   function getActiveSession(){ return sessions.find(s => s.id === activeId) || null; }
 
-  function applyTheme(theme) {
-    document.body.classList.toggle('light-theme', theme === 'light');
-  }
+  function applyTheme(theme) { document.body.classList.toggle('light-theme', theme === 'light'); }
   applyTheme(uiTheme);
 
   function createSession(){
@@ -537,7 +613,6 @@
   }
   function ensureUsage(s){ if(!s.usage) s.usage = {inputTokens:0, outputTokens:0, cacheTokens:0}; return s.usage; }
 
-  // FIX: Create a session on startup if none exist (fixes empty Dashboard on first load)
   if (sessions.length === 0) {
     createSession();
   } else if (!activeId || !sessions.find(s => s.id === activeId)) {
@@ -553,18 +628,43 @@
   const $charCounter = document.getElementById('charCounter');
   const $modelLabel  = document.getElementById('modelLabel');
   const $sessionList = document.getElementById('sessionList');
-
-  const $tabs  = document.querySelectorAll('.tab');
-  const $views = { chat: document.getElementById('view-chat'), dashboard: document.getElementById('view-dashboard'), settings: document.getElementById('view-settings') };
+  const $tabs        = document.querySelectorAll('.tab');
+  const $views       = { chat: document.getElementById('view-chat'), dashboard: document.getElementById('view-dashboard'), settings: document.getElementById('view-settings') };
 
   // Settings DOM
   const $baseUrl = document.getElementById('baseUrl'), $apiKey = document.getElementById('apiKey'), $modelName = document.getElementById('modelName'), $systemPrompt = document.getElementById('systemPrompt');
   const $priceInputField = document.getElementById('priceInputField'), $priceOutputField = document.getElementById('priceOutputField'), $priceCacheField = document.getElementById('priceCacheField'), $usdRate = document.getElementById('usdRate');
   const $uiThemeSelect = document.getElementById('uiTheme'), $rotToggle = document.getElementById('rotToggle'), $rotModel = document.getElementById('rotModel'), $rotKeys = document.getElementById('rotKeys');
+  const $fontSizeRange = document.getElementById('fontSizeRange'), $fontSizeValue = document.getElementById('fontSizeValue');
 
   // Dashboard DOM
   const $dashCostUsd = document.getElementById('dashCostUsd'), $dashCostIdr = document.getElementById('dashCostIdr'), $dashInputTok = document.getElementById('dashInputTok'), $dashOutputTok = document.getElementById('dashOutputTok'), $dashMsgCount = document.getElementById('dashMsgCount'), $dashAvgMsg = document.getElementById('dashAvgMsg');
   const $priceInput = document.getElementById('priceInput'), $priceOutput = document.getElementById('priceOutput'), $priceCache = document.getElementById('priceCache'), $historyList = document.getElementById('historyList');
+
+  // ---------- Feature #1: Send/Stop button toggle ----------
+  function setStreamingUI(streaming) {
+    isStreaming = streaming;
+    if (streaming) {
+      $sendBtn.textContent = '■';
+      $sendBtn.classList.add('stop-mode');
+      $sendBtn.disabled = false;
+      $sendBtn.title = 'Hentikan respons';
+    } else {
+      $sendBtn.textContent = '↑';
+      $sendBtn.classList.remove('stop-mode');
+      $sendBtn.disabled = false;
+      $sendBtn.title = '';
+    }
+  }
+
+  $sendBtn.addEventListener('click', () => {
+    if (isStreaming) {
+      // Stop streaming
+      if (streamController) streamController.abort('user_stop');
+      return;
+    }
+    doSend();
+  });
 
   // ---------- Tab nav ----------
   $tabs.forEach(tab => {
@@ -580,6 +680,31 @@
     $modelLabel.textContent = rotConfig.enabled ? `${activeModel} (Rot)` : (config.model || 'belum diset');
   }
 
+  // ---------- Feature #3: Session rename ----------
+  function makeRenameInput(s, titleSpan) {
+    const input = document.createElement('input');
+    input.className = 'stitle-edit';
+    input.value = s.title || 'Percakapan baru';
+    input.maxLength = 80;
+    let saved = false;
+    const save = () => {
+      if (saved) return;
+      saved = true;
+      const newTitle = input.value.trim() || 'Percakapan baru';
+      s.title = newTitle;
+      localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+      renderSidebar();
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', ke => {
+      if (ke.key === 'Enter') { ke.preventDefault(); input.blur(); }
+      if (ke.key === 'Escape') { saved = true; input.blur(); renderSidebar(); }
+    });
+    input.addEventListener('click', e => e.stopPropagation());
+    titleSpan.replaceWith(input);
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  }
+
   // ---------- Sidebar sessions list ----------
   function renderSidebar(){
     $sessionList.innerHTML = '';
@@ -589,39 +714,37 @@
 
       const titleSpan = document.createElement('span');
       titleSpan.className = 'stitle';
-      titleSpan.textContent = s.title || 'Percakapan baru'; // safe: textContent
+      titleSpan.textContent = s.title || 'Percakapan baru';
+      titleSpan.title = 'Klik untuk buka · Klik dua kali untuk ganti nama';
       titleSpan.addEventListener('click', () => {
         activeId = s.id;
         localStorage.setItem(K_ACTIVE, activeId);
-        renderMessages();
-        renderSidebar();
+        renderMessages(); renderSidebar();
         document.getElementById('sidebar').classList.remove('open');
         document.getElementById('overlay').classList.remove('open');
       });
+      // Feature #3: double-click to rename
+      titleSpan.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        makeRenameInput(s, titleSpan);
+      });
       item.appendChild(titleSpan);
 
-      // FIX: Export anchor appended to body so it works cross-browser (Firefox)
       const exportBtn = document.createElement('button');
       exportBtn.className = 'session-export';
-      exportBtn.textContent = '📥';
-      exportBtn.title = 'Ekspor sesi (JSON)';
-      exportBtn.addEventListener('click', (e) => {
+      exportBtn.textContent = '📥'; exportBtn.title = 'Ekspor sesi (JSON)';
+      exportBtn.addEventListener('click', e => {
         e.stopPropagation();
-        const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(s, null, 2));
         const a = document.createElement('a');
-        a.href = dataStr;
+        a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(s, null, 2));
         a.download = `chat_session_${s.id}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
       });
       item.appendChild(exportBtn);
 
       const delBtn = document.createElement('button');
-      delBtn.className = 'session-del';
-      delBtn.textContent = '✕';
-      delBtn.title = 'Hapus sesi';
-      delBtn.addEventListener('click', (e) => {
+      delBtn.className = 'session-del'; delBtn.textContent = '✕'; delBtn.title = 'Hapus sesi';
+      delBtn.addEventListener('click', e => {
         e.stopPropagation();
         if(confirm('Hapus sesi ini?')){
           sessions = sessions.filter(sess => sess.id !== s.id);
@@ -631,12 +754,10 @@
             activeId = sessions[0].id;
             localStorage.setItem(K_ACTIVE, activeId);
           }
-          renderSidebar();
-          renderMessages();
+          renderSidebar(); renderMessages();
         }
       });
       item.appendChild(delBtn);
-
       $sessionList.appendChild(item);
     });
   }
@@ -652,6 +773,12 @@
     requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
   }
 
+  // Helper: extract plain text from content (string or array)
+  function getTextContent(content) {
+    if (Array.isArray(content)) return content.find(p => p.type === 'text')?.text || '';
+    return content || '';
+  }
+
   function appendMessageDOM(role, content, animate, idx, reasoning){
     $emptyState.style.display = 'none';
     const row = document.createElement('div'); row.className = 'msg-row ' + role; row.dataset.idx = idx ?? '';
@@ -663,29 +790,34 @@
 
     if(role === 'assistant'){
       let html = '';
-      // FIX: escape reasoning text before injecting into innerHTML (XSS prevention)
-      if(reasoning){
-        html += `<details class="thinking-block"><summary>Pemikiran (Thinking)</summary><div class="thinking-content">${escapeHtml(reasoning)}</div></details>`;
-      }
-      html += typeof marked !== 'undefined' ? marked.parse(content) : escapeHtml(content);
+      if(reasoning) html += `<details class="thinking-block"><summary>Pemikiran (Thinking)</summary><div class="thinking-content">${escapeHtml(reasoning)}</div></details>`;
+      const text = getTextContent(content);
+      html += typeof marked !== 'undefined' ? marked.parse(text) : escapeHtml(text);
       bubble.innerHTML = html;
     } else {
-      bubble.textContent = content; // safe: textContent for user messages
+      // Feature #4: render text + optional image for user messages
+      const text = getTextContent(content);
+      bubble.textContent = text;
+      if(Array.isArray(content)){
+        const imgPart = content.find(p => p.type === 'image_url');
+        if(imgPart){
+          const img = document.createElement('img');
+          img.src = imgPart.image_url.url;
+          img.className = 'msg-image';
+          img.alt = 'Lampiran gambar';
+          bubble.appendChild(img);
+        }
+      }
     }
 
     row.appendChild(roleLine); row.appendChild(bubble);
 
-    // Message action buttons
     if(idx !== undefined && idx !== null){
       const actions = document.createElement('div'); actions.className = 'msg-actions';
-
-      // FIX: use copyToClipboard helper with fallback
+      const textForCopy = getTextContent(content);
       const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.textContent = 'Salin';
       copyBtn.addEventListener('click', () => {
-        copyToClipboard(content, () => {
-          copyBtn.textContent = 'Tersalin!';
-          setTimeout(() => copyBtn.textContent = 'Salin', 1500);
-        });
+        copyToClipboard(textForCopy, () => { copyBtn.textContent = 'Tersalin!'; setTimeout(() => copyBtn.textContent = 'Salin', 1500); });
       });
       actions.appendChild(copyBtn);
 
@@ -693,11 +825,11 @@
         const editBtn = document.createElement('button'); editBtn.className = 'msg-action-btn'; editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => {
           editingIndex = idx;
-          $textInput.value = content;
+          $textInput.value = getTextContent(content);
           $textInput.focus();
           $textInput.style.height = 'auto';
           $textInput.style.height = Math.min($textInput.scrollHeight, 120) + 'px';
-          $charCounter.textContent = content.length + ' char';
+          $charCounter.textContent = $textInput.value.length + ' char';
           document.getElementById('editingBanner').classList.add('show');
         });
         actions.appendChild(editBtn);
@@ -705,24 +837,15 @@
 
       const delBtn = document.createElement('button'); delBtn.className = 'msg-action-btn'; delBtn.textContent = 'Hapus';
       delBtn.addEventListener('click', () => {
-        const s = getActiveSession();
-        if(!s) return;
+        const s = getActiveSession(); if(!s) return;
         if(role === 'user' && s.messages[idx+1] && s.messages[idx+1].role === 'assistant'){
           s.messages.splice(idx, 2);
-        } else {
-          s.messages.splice(idx, 1);
-        }
+        } else { s.messages.splice(idx, 1); }
         localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
-        if(editingIndex === idx){
-          editingIndex = null;
-          $textInput.value = '';
-          document.getElementById('editingBanner').classList.remove('show');
-        }
-        renderMessages();
-        renderSidebar();
+        if(editingIndex === idx){ editingIndex = null; $textInput.value = ''; document.getElementById('editingBanner').classList.remove('show'); }
+        renderMessages(); renderSidebar();
       });
       actions.appendChild(delBtn);
-
       row.appendChild(actions);
     }
 
@@ -734,20 +857,14 @@
   function postProcessMessages() {
     $messages.querySelectorAll('.bubble pre').forEach(pre => {
       if (pre.querySelector('.code-copy-btn')) return;
-
       const btn = document.createElement('button');
-      btn.className = 'code-copy-btn';
-      btn.textContent = 'Copy';
-      // FIX: exclude the button node itself so "Copy"/"Copied!" text isn't included in copied content
+      btn.className = 'code-copy-btn'; btn.textContent = 'Copy';
       btn.addEventListener('click', () => {
         const codeEl = pre.querySelector('code');
         const codeText = codeEl
           ? codeEl.textContent
           : [...pre.childNodes].filter(n => n !== btn).map(n => n.textContent).join('');
-        copyToClipboard(codeText, () => {
-          btn.textContent = 'Copied!';
-          setTimeout(() => btn.textContent = 'Copy', 2000);
-        });
+        copyToClipboard(codeText, () => { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); });
       });
       pre.appendChild(btn);
     });
@@ -758,32 +875,27 @@
     const s = getActiveSession();
     const usage = s ? ensureUsage(s) : {inputTokens:0, outputTokens:0, cacheTokens:0};
     const pricing = currentPricing();
-    const cost = ((usage.inputTokens/1000000)*(pricing.input||0)) + ((usage.outputTokens/1000000)*(pricing.output||0)) + ((usage.cacheTokens/1000000)*(pricing.cache||0));
-
+    const cost = ((usage.inputTokens/1e6)*(pricing.input||0)) + ((usage.outputTokens/1e6)*(pricing.output||0)) + ((usage.cacheTokens/1e6)*(pricing.cache||0));
     $dashCostUsd.textContent = '$' + cost.toFixed(6);
     $dashCostIdr.textContent = 'Rp ' + Math.round(cost * (config.usdRate || USD_RATE_DEFAULT)).toLocaleString('id-ID');
     $dashInputTok.textContent = usage.inputTokens.toLocaleString('id-ID');
     $dashOutputTok.textContent = usage.outputTokens.toLocaleString('id-ID');
-
     const msgCount = s ? s.messages.length : 0;
     $dashMsgCount.textContent = msgCount;
     $dashAvgMsg.textContent = '$' + (msgCount > 0 ? (cost/msgCount).toFixed(6) : '0.000000');
-
-    $priceInput.textContent = '$' + (pricing.input || 0); $priceOutput.textContent = '$' + (pricing.output || 0); $priceCache.textContent = '$' + (pricing.cache || 0);
-
+    $priceInput.textContent = '$' + (pricing.input||0); $priceOutput.textContent = '$' + (pricing.output||0); $priceCache.textContent = '$' + (pricing.cache||0);
     $historyList.innerHTML = '';
     sessions.forEach(sess => {
       const u = ensureUsage(sess);
-      const c = ((u.inputTokens/1000000)*(pricing.input||0)) + ((u.outputTokens/1000000)*(pricing.output||0)) + ((u.cacheTokens/1000000)*(pricing.cache||0));
+      const c = ((u.inputTokens/1e6)*(pricing.input||0)) + ((u.outputTokens/1e6)*(pricing.output||0)) + ((u.cacheTokens/1e6)*(pricing.cache||0));
       const dateStr = new Date(sess.createdAt).toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
       const item = document.createElement('div'); item.className = 'history-item';
-      // FIX: Use textContent for session title — prevents XSS from user-supplied session names
       const topDiv = document.createElement('div'); topDiv.className = 'history-item-top';
       const dateSpan = document.createElement('span'); dateSpan.textContent = dateStr;
       const costSpan = document.createElement('span'); costSpan.textContent = '$' + c.toFixed(6);
       topDiv.appendChild(dateSpan); topDiv.appendChild(costSpan);
       const titleDiv = document.createElement('div'); titleDiv.className = 'history-item-title';
-      titleDiv.textContent = sess.title || 'Chat'; // safe: textContent
+      titleDiv.textContent = sess.title || 'Chat';
       item.appendChild(topDiv); item.appendChild(titleDiv);
       $historyList.appendChild(item);
     });
@@ -791,67 +903,106 @@
 
   // ---------- Settings Form ----------
   $uiThemeSelect.value = uiTheme;
+  $fontSizeRange.value = fontSize;
+  $fontSizeValue.textContent = fontSize;
   $baseUrl.value = config.baseUrl; $apiKey.value = config.apiKey; $modelName.value = config.model; $systemPrompt.value = config.systemPrompt; $usdRate.value = config.usdRate || USD_RATE_DEFAULT;
   $rotToggle.checked = rotConfig.enabled; $rotModel.value = rotConfig.model; $rotKeys.value = (rotConfig.keys || []).join('\n');
-
   const p = currentPricing();
   $priceInputField.value = p.input||''; $priceOutputField.value = p.output||''; $priceCacheField.value = p.cache||'';
 
+  // Feature #5: live font size preview
+  $fontSizeRange.addEventListener('input', () => {
+    const sz = parseInt($fontSizeRange.value);
+    $fontSizeValue.textContent = sz;
+    applyFontSize(sz);
+  });
+
   $modelName.addEventListener('change', () => {
     const mName = $modelName.value.trim();
-    if(mName) {
-      const pricing = pricingByModel[mName] || {input:0, output:0, cache:0};
-      $priceInputField.value = pricing.input||'';
-      $priceOutputField.value = pricing.output||'';
-      $priceCacheField.value = pricing.cache||'';
-    }
+    if(mName){ const pr = pricingByModel[mName] || {input:0, output:0, cache:0}; $priceInputField.value = pr.input||''; $priceOutputField.value = pr.output||''; $priceCacheField.value = pr.cache||''; }
   });
 
   document.getElementById('saveSettings').addEventListener('click', () => {
     config.baseUrl = $baseUrl.value.trim().replace(/\/$/, '');
-    config.apiKey = $apiKey.value.trim();
-    config.model = $modelName.value.trim();
-    config.systemPrompt = $systemPrompt.value;
-    config.usdRate = parseFloat($usdRate.value) || USD_RATE_DEFAULT;
+    config.apiKey = $apiKey.value.trim(); config.model = $modelName.value.trim();
+    config.systemPrompt = $systemPrompt.value; config.usdRate = parseFloat($usdRate.value) || USD_RATE_DEFAULT;
     uiTheme = $uiThemeSelect.value;
+    // Feature #5: save font size
+    fontSize = parseInt($fontSizeRange.value) || 15;
+    localStorage.setItem(K_FONTSIZE, fontSize);
+    applyFontSize(fontSize);
 
-    rotConfig.enabled = $rotToggle.checked;
-    rotConfig.model = $rotModel.value.trim();
+    rotConfig.enabled = $rotToggle.checked; rotConfig.model = $rotModel.value.trim();
     const newKeys = $rotKeys.value.split('\n').map(k=>k.trim()).filter(k=>k);
-    // FIX: Reset index if key list changed to avoid pointing at wrong key
-    if(JSON.stringify(newKeys) !== JSON.stringify(rotConfig.keys)) {
-      rotConfig.currentIndex = 0;
-    }
+    if(JSON.stringify(newKeys) !== JSON.stringify(rotConfig.keys)) rotConfig.currentIndex = 0;
     rotConfig.keys = newKeys;
-    if(rotConfig.keys.length > 0) {
-      rotConfig.currentIndex = rotConfig.currentIndex % rotConfig.keys.length;
-    } else {
-      rotConfig.currentIndex = 0;
-    }
-
+    if(rotConfig.keys.length > 0) rotConfig.currentIndex = rotConfig.currentIndex % rotConfig.keys.length;
+    else rotConfig.currentIndex = 0;
     if(config.model) pricingByModel[config.model] = { input: parseFloat($priceInputField.value)||0, output: parseFloat($priceOutputField.value)||0, cache: parseFloat($priceCacheField.value)||0 };
-
-    localStorage.setItem(K_CFG, JSON.stringify(config));
-    localStorage.setItem(K_PRICING, JSON.stringify(pricingByModel));
-    localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
-    localStorage.setItem(K_THEME, uiTheme);
-
+    localStorage.setItem(K_CFG, JSON.stringify(config)); localStorage.setItem(K_PRICING, JSON.stringify(pricingByModel));
+    localStorage.setItem(K_ROT, JSON.stringify(rotConfig)); localStorage.setItem(K_THEME, uiTheme);
     applyTheme(uiTheme); renderModelLabel();
     showToast('Tersimpan!', 'success');
-    document.getElementById('settingsStatus').textContent = '';
   });
 
-  // ---------- Send & Stream ----------
-  async function doSend() {
-    const text = $textInput.value.trim(); if(!text || isStreaming) return;
+  // ---------- Feature #4: Image attachment ----------
+  async function resizeImageToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 1024;
+          let w = img.width, h = img.height;
+          if(w > MAX || h > MAX){
+            if(w > h){ h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          const mimeType = file.type || 'image/jpeg';
+          const dataUrl = canvas.toDataURL(mimeType, 0.85);
+          resolve({ base64: dataUrl.split(',')[1], mimeType, name: file.name, dataUrl });
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
-    // FIX: showToast replaces alert() for non-blocking error feedback
-    if(!config.baseUrl) {
-      showToast('Mohon atur Base URL di tab Settings terlebih dahulu!', 'error', 4000);
-      return;
+  document.getElementById('attachBtn').addEventListener('click', () => {
+    document.getElementById('imageInput').click();
+  });
+
+  document.getElementById('imageInput').addEventListener('change', async e => {
+    const file = e.target.files[0]; if(!file) return;
+    try {
+      pendingImage = await resizeImageToBase64(file);
+      document.getElementById('attachThumb').src = pendingImage.dataUrl;
+      document.getElementById('attachLabel').textContent = file.name;
+      document.getElementById('attachPreview').style.display = 'flex';
+    } catch(err) {
+      showToast('Gagal memuat gambar', 'error');
     }
+    e.target.value = '';
+  });
 
-    let s = getActiveSession(); if(!s){ s = createSession(); }
+  document.getElementById('removeAttach').addEventListener('click', () => {
+    pendingImage = null;
+    document.getElementById('attachPreview').style.display = 'none';
+    document.getElementById('attachThumb').src = '';
+  });
+
+  // ---------- Send ----------
+  async function doSend() {
+    const text = $textInput.value.trim();
+    if((!text && !pendingImage) || isStreaming) return;
+    if(!config.baseUrl){ showToast('Mohon atur Base URL di tab Settings terlebih dahulu!', 'error', 4000); return; }
+
+    let s = getActiveSession(); if(!s) s = createSession();
 
     if(editingIndex !== null){
       s.messages[editingIndex].content = text;
@@ -859,46 +1010,42 @@
       editingIndex = null;
       document.getElementById('editingBanner').classList.remove('show');
     } else {
-      s.messages.push({role:'user', content:text});
-      if(s.messages.length === 1) s.title = text.slice(0, 40);
+      // Feature #4: include image in message if pending
+      let msgContent = text;
+      if(pendingImage){
+        msgContent = [
+          { type: 'text', text: text },
+          { type: 'image_url', image_url: { url: `data:${pendingImage.mimeType};base64,${pendingImage.base64}` } }
+        ];
+        pendingImage = null;
+        document.getElementById('attachPreview').style.display = 'none';
+        document.getElementById('attachThumb').src = '';
+      }
+      s.messages.push({ role: 'user', content: msgContent });
+      if(s.messages.length === 1) s.title = text.slice(0, 40) || 'Gambar';
     }
 
     localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
-
     renderMessages();
-    $textInput.value = '';
-    $charCounter.textContent = '0 char';
-    $textInput.style.height = 'auto';
+    $textInput.value = ''; $charCounter.textContent = '0 char'; $textInput.style.height = 'auto';
     renderSidebar();
-
     await streamAssistantReply(s);
   }
-
-  $sendBtn.addEventListener('click', doSend);
 
   $textInput.addEventListener('input', () => {
     $textInput.style.height='auto';
     $textInput.style.height=Math.min($textInput.scrollHeight, 120)+'px';
     $charCounter.textContent = $textInput.value.length+' char';
   });
-
-  // FIX: Enter-to-send (Shift+Enter = newline)
-  $textInput.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      doSend();
-    }
+  $textInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); doSend(); }
   });
-
   document.getElementById('cancelEditBtn').addEventListener('click', () => {
-    editingIndex = null;
-    $textInput.value = '';
-    $textInput.style.height = 'auto';
-    $charCounter.textContent = '0 char';
-    document.getElementById('editingBanner').classList.remove('show');
+    editingIndex = null; $textInput.value = ''; $textInput.style.height = 'auto';
+    $charCounter.textContent = '0 char'; document.getElementById('editingBanner').classList.remove('show');
   });
 
-  // FIX: Friendly HTTP error map
+  // ---------- Friendly HTTP errors ----------
   const HTTP_ERRORS = {
     401: 'API Key tidak valid atau expired (401)',
     403: 'Akses ditolak — periksa izin API Key (403)',
@@ -908,33 +1055,32 @@
     503: 'Layanan tidak tersedia — coba lagi nanti (503)',
   };
 
+  // ---------- Stream ----------
   async function streamAssistantReply(session){
-    isStreaming = true; $sendBtn.disabled = true;
+    setStreamingUI(true);
     const bubble = appendMessageDOM('assistant', '', true);
     bubble.classList.add('streaming');
     let fullText = '', reasoningText = '', usageData = null;
+    let stoppedByUser = false;
 
     const apiMsgs = config.systemPrompt ? [{role:'system', content:config.systemPrompt}] : [];
-    session.messages.forEach(m => apiMsgs.push({role: m.role, content: m.content}));
+    // Pass full content (string or array) for each message
+    session.messages.forEach(m => apiMsgs.push({ role: m.role, content: m.content }));
 
     const rotKeyCount = (rotConfig.enabled && rotConfig.keys.length > 0) ? rotConfig.keys.length : 0;
-    let rotationsUsed = 0;
-    let success = false;
-    let lastError = null;
+    let rotationsUsed = 0, success = false, lastError = null;
 
-    // FIX: try/finally guarantees isStreaming + sendBtn are ALWAYS reset, even on uncaught exceptions
     try {
       while(!success){
         let currKey = config.apiKey, currModel = config.model;
         if(rotConfig.enabled && rotConfig.keys.length > 0){
           const idx = (rotConfig.currentIndex ?? 0) % rotConfig.keys.length;
-          currKey = rotConfig.keys[idx];
-          currModel = rotConfig.model || config.model;
+          currKey = rotConfig.keys[idx]; currModel = rotConfig.model || config.model;
         }
 
-        // FIX: AbortController with 30s connection timeout per attempt
-        const controller = new AbortController();
-        const connectTimeout = setTimeout(() => controller.abort(), 30000);
+        // Feature #1: new AbortController per attempt
+        streamController = new AbortController();
+        const connectTimeout = setTimeout(() => streamController.abort('timeout'), 30000);
 
         try {
           const body = { model: currModel, messages: apiMsgs, stream: true };
@@ -945,19 +1091,16 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey },
             body: JSON.stringify(body),
-            signal: controller.signal
+            signal: streamController.signal
           });
-          clearTimeout(connectTimeout); // Connected — cancel connection timeout
+          clearTimeout(connectTimeout);
 
           if(!resp.ok){
-            // Only rotate on 429; other HTTP errors are terminal immediately
             if(resp.status === 429 && rotKeyCount > 0 && rotationsUsed < rotKeyCount - 1){
               rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
               localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
-              rotationsUsed++;
-              continue;
+              rotationsUsed++; continue;
             }
-            // FIX: Friendly error message for known HTTP status codes
             throw new Error(HTTP_ERRORS[resp.status] || `HTTP ${resp.status}`);
           }
 
@@ -973,24 +1116,13 @@
                 const json = JSON.parse(payload);
                 const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
                 const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
-
                 if(reasoningDelta) reasoningText += reasoningDelta;
                 if(delta) fullText += delta;
-
-                if(delta || reasoningDelta) {
-                  let bubbleHtml = '';
-                  if(reasoningText){
-                    bubbleHtml += `
-                      <details class="thinking-block" open>
-                        <summary>Pemikiran (Thinking)...</summary>
-                        <div class="thinking-content">${escapeHtml(reasoningText)}</div>
-                      </details>
-                    `;
-                  }
-                  if(fullText){
-                    bubbleHtml += typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
-                  }
-                  bubble.innerHTML = bubbleHtml;
+                if(delta || reasoningDelta){
+                  let bHtml = '';
+                  if(reasoningText) bHtml += `<details class="thinking-block" open><summary>Pemikiran (Thinking)...</summary><div class="thinking-content">${escapeHtml(reasoningText)}</div></details>`;
+                  if(fullText) bHtml += typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
+                  bubble.innerHTML = bHtml;
                   requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
                 }
                 if(json?.usage) usageData = json.usage;
@@ -1000,12 +1132,15 @@
           success = true;
         } catch(err) {
           clearTimeout(connectTimeout);
-          // FIX: AbortError = connection timed out
-          if(err.name === 'AbortError') {
-            lastError = new Error('Timeout: server tidak merespons dalam 30 detik');
-          } else {
-            lastError = err;
-          }
+          if(err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError')){
+            // Feature #1: check if aborted by user or by timeout
+            if(streamController.signal.reason === 'user_stop'){
+              stoppedByUser = true;
+              success = true; // treat as successful partial — save what we got
+            } else {
+              lastError = new Error('Timeout: server tidak merespons dalam 30 detik');
+            }
+          } else { lastError = err; }
           break;
         }
       }
@@ -1016,115 +1151,75 @@
         return;
       }
 
-      session.messages.push({role:'assistant', content: fullText, reasoning: reasoningText});
-
-      const usage = ensureUsage(session);
-      if(usageData){
-        usage.inputTokens  += usageData.prompt_tokens||0;
-        usage.outputTokens += usageData.completion_tokens||0;
-        usage.cacheTokens  += usageData.prompt_tokens_details?.cached_tokens||0;
+      // Save streamed content (full or partial if user stopped)
+      if(fullText || reasoningText){
+        const savedContent = fullText + (stoppedByUser ? ' ▌[dihentikan]' : '');
+        session.messages.push({ role:'assistant', content: savedContent, reasoning: reasoningText });
+        const usage = ensureUsage(session);
+        if(usageData){
+          usage.inputTokens  += usageData.prompt_tokens||0;
+          usage.outputTokens += usageData.completion_tokens||0;
+          usage.cacheTokens  += usageData.prompt_tokens_details?.cached_tokens||0;
+        }
+        localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
       }
-      localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
 
-      // Don't call full renderMessages() after streaming — it resets <details> open state.
-      // Instead just attach copy buttons to newly streamed code blocks.
       postProcessMessages();
       renderSidebar();
     } finally {
-      // Always runs — even if an unexpected exception escapes the loops above
+      streamController = null;
+      setStreamingUI(false);
       bubble.classList.remove('streaming');
-      isStreaming = false;
-      $sendBtn.disabled = false;
     }
   }
 
   // ---------- Model settings controls ----------
   function renderEffortIndicator(){
-    const eff = modelParams.effort || 'off';
-    const think = modelParams.thinking;
+    const eff = modelParams.effort || 'off', think = modelParams.thinking;
     const parts = [];
     if(eff !== 'off') parts.push(`Reasoning: ${eff}`);
     if(think) parts.push('Thinking: On');
     document.getElementById('effortIndicator').textContent = parts.join(' | ');
   }
-
   document.querySelectorAll('#effortSegmented button').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#effortSegmented button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      modelParams.effort = btn.dataset.val;
-      localStorage.setItem(K_MODELPARAMS, JSON.stringify(modelParams));
-      renderEffortIndicator();
+      btn.classList.add('active'); modelParams.effort = btn.dataset.val;
+      localStorage.setItem(K_MODELPARAMS, JSON.stringify(modelParams)); renderEffortIndicator();
     });
   });
-
   document.getElementById('thinkingToggle').addEventListener('change', function() {
     modelParams.thinking = this.checked;
-    localStorage.setItem(K_MODELPARAMS, JSON.stringify(modelParams));
-    renderEffortIndicator();
+    localStorage.setItem(K_MODELPARAMS, JSON.stringify(modelParams)); renderEffortIndicator();
   });
 
   // Drawers and overlays
-  document.getElementById('menuBtn').addEventListener('click', () => {
-    renderSidebar();
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('overlay').classList.add('open');
-  });
-  document.getElementById('overlay').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('overlay').classList.remove('open');
-  });
-
-  document.getElementById('newChatBtn').addEventListener('click', () => {
-    createSession();
-    renderMessages();
-    renderSidebar();
-    document.getElementById('overlay').click();
-  });
-
+  document.getElementById('menuBtn').addEventListener('click', () => { renderSidebar(); document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('open'); });
+  document.getElementById('overlay').addEventListener('click', () => { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); });
+  document.getElementById('newChatBtn').addEventListener('click', () => { createSession(); renderMessages(); renderSidebar(); document.getElementById('overlay').click(); });
   document.getElementById('clearAllBtn').addEventListener('click', () => {
-    if(confirm('Apakah Anda yakin ingin menghapus semua sesi?')){
-      sessions = [];
-      createSession();
-      renderSidebar();
-      renderMessages();
-      document.getElementById('sidebar').classList.remove('open');
-      document.getElementById('overlay').classList.remove('open');
-    }
+    if(confirm('Apakah Anda yakin ingin menghapus semua sesi?')){ sessions = []; createSession(); renderSidebar(); renderMessages(); document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
   });
-
   document.getElementById('modelDrawerBtn').addEventListener('click', () => {
     const effort = modelParams.effort || 'off';
-    document.querySelectorAll('#effortSegmented button').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.val === effort);
-    });
+    document.querySelectorAll('#effortSegmented button').forEach(btn => btn.classList.toggle('active', btn.dataset.val === effort));
     document.getElementById('thinkingToggle').checked = !!modelParams.thinking;
-    document.getElementById('modelDrawer').classList.add('open');
-    document.getElementById('modelOverlay').classList.add('open');
+    document.getElementById('modelDrawer').classList.add('open'); document.getElementById('modelOverlay').classList.add('open');
   });
-  document.getElementById('closeModelDrawer').addEventListener('click', () => {
-    document.getElementById('modelDrawer').classList.remove('open');
-    document.getElementById('modelOverlay').classList.remove('open');
-  });
-  document.getElementById('modelOverlay').addEventListener('click', () => {
-    document.getElementById('modelDrawer').classList.remove('open');
-    document.getElementById('modelOverlay').classList.remove('open');
-  });
+  document.getElementById('closeModelDrawer').addEventListener('click', () => { document.getElementById('modelDrawer').classList.remove('open'); document.getElementById('modelOverlay').classList.remove('open'); });
+  document.getElementById('modelOverlay').addEventListener('click', () => { document.getElementById('modelDrawer').classList.remove('open'); document.getElementById('modelOverlay').classList.remove('open'); });
 
-  // ---------- Service Worker Registration ----------
+  // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('ServiceWorker registered:', reg))
-        .catch(err => console.error('ServiceWorker registration failed:', err));
+        .then(reg => console.log('SW registered:', reg))
+        .catch(err => console.error('SW failed:', err));
     });
   }
 
   // ---------- Init ----------
-  renderModelLabel();
-  renderMessages();
-  renderSidebar();
-  renderEffortIndicator();
+  renderModelLabel(); renderMessages(); renderSidebar(); renderEffortIndicator();
 })();
 </script>
 </body>

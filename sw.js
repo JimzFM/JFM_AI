@@ -1,11 +1,13 @@
-const CACHE_NAME = 'relay-cache-v3';
-// FIX: Bumped cache version so existing users get the updated index.html immediately
+const CACHE_NAME = 'relay-cache-v4';
+// Bumped to v4: adds highlight.js CSS + JS assets
 const ASSETS = [
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js'
+  'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js',
+  'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css',
+  'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js'
 ];
 
 // Shell resources that should always be freshly fetched (network-first)
