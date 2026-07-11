@@ -18,6 +18,8 @@
   "appVersion": "1.0.0",
   "orientation": "any",
   "display": "standalone",
+  "iconUrl": "https://jimzfm.github.io/JFM_AI/icon-512.png",
+  "maskableIconUrl": "https://jimzfm.github.io/JFM_AI/icon-512.png",
   "features": {},
   "alphaDependencies": false,
   "enableSiteSettingsShortcut": true,
