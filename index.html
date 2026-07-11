@@ -2,7 +2,8 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- FIX: Removed maximum-scale=1.0 and user-scalable=no (accessibility) -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jimz_AI</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d0f0e">
@@ -10,8 +11,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Jimz_AI">
 <link rel="apple-touch-icon" href="icon-192.png">
-<!-- Markdown Parser -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- FIX: Pinned version + SRI hash to prevent supply-chain attacks -->
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"
+        integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+"
+        crossorigin="anonymous"></script>
 <style>
   :root{
     --bg:#0d0f0e; --panel:#141715; --panel-2:#191d1a; --line:#262b27;
@@ -76,22 +79,81 @@
   .bubble pre { background: var(--panel-2); padding: 10px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); }
   .bubble code { font-family: var(--mono); background: var(--panel-2); padding: 2px 4px; border-radius: 4px; font-size: 13px; }
 
-  .msg-actions{ display:flex; gap:4px; margin-top:4px; }
-  .msg-action-btn{ background:none; border:1px solid var(--line); color:var(--text-dim); font-size:10.5px; font-family:var(--mono); padding:3px 8px; border-radius:6px; }
-  .msg-action-btn:active{ background:var(--panel-2); color:var(--text); }
+  .msg-actions{ display:flex; gap:6px; margin-top:4px; }
+  .msg-action-btn{ background:none; border:1px solid var(--line); color:var(--text-dim); font-size:10.5px; font-family:var(--mono); padding:3px 8px; border-radius:6px; cursor:pointer; transition: all 0.2s ease; }
+  .msg-action-btn:hover{ border-color:var(--text-dim); color:var(--text); background:var(--panel-2); }
+  .msg-action-btn:active{ transform:scale(0.95); }
+
+  /* Thinking Block styling */
+  .thinking-block {
+    background: var(--panel-2);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-dim);
+    width: 100%;
+  }
+  .thinking-block summary {
+    font-family: var(--mono);
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+  }
+  .thinking-content {
+    margin-top: 6px;
+    white-space: pre-wrap;
+    font-family: var(--sans);
+    line-height: 1.4;
+    border-top: 1px solid var(--line);
+    padding-top: 6px;
+  }
+
+  /* Code block copy button styling */
+  .bubble pre { position: relative; }
+  .code-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 3px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+  }
+  .bubble pre:hover .code-copy-btn {
+    opacity: 1;
+  }
+  .code-copy-btn:hover {
+    color: var(--text);
+    background: var(--line);
+  }
+  .code-copy-btn:active {
+    transform: scale(0.95);
+  }
 
   /* ---- Input bar ---- */
   #inputbar{ display:flex; flex-direction:column; gap:6px; padding:8px 12px calc(env(safe-area-inset-bottom) + 8px); background:var(--panel); border-top:1px solid var(--line); flex-shrink:0; }
   .input-row{ display:flex; align-items:flex-end; gap:8px; }
-  #textInput{ flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:18px; padding:10px 14px; font-size:15px; font-family:var(--sans); resize:none; max-height:120px; line-height:1.4; }
+  #textInput{ flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:18px; padding:10px 14px; font-size:15px; font-family:var(--sans); resize:none; max-height:120px; line-height:1.4; transition: border-color 0.2s ease; }
   #textInput:focus{outline:none; border-color:var(--accent-dim);}
-  #sendBtn{ width:38px; height:38px; border-radius:50%; background:var(--accent-bright); color:#0d0f0e; border:none; flex-shrink:0; font-size:17px; display:flex; align-items:center; justify-content:center; font-weight:700; }
-  #sendBtn:disabled{background:var(--line); color:var(--text-dim);}
+  #sendBtn{ width:38px; height:38px; border-radius:50%; background:var(--accent-bright); color:#0d0f0e; border:none; flex-shrink:0; font-size:17px; display:flex; align-items:center; justify-content:center; font-weight:700; cursor:pointer; transition: background-color 0.2s ease, transform 0.1s ease; }
+  #sendBtn:hover:not(:disabled){ background:var(--accent); color:var(--text); }
+  #sendBtn:active:not(:disabled){ transform:scale(0.92); }
+  #sendBtn:disabled{background:var(--line); color:var(--text-dim); cursor:default;}
   .input-meta-row{ display:flex; justify-content:space-between; padding:0 4px; }
   .char-counter{ font-family:var(--mono); font-size:10px; color:var(--text-dim); }
   .editing-banner{ display:none; align-items:center; justify-content:space-between; background:var(--panel-2); border:1px solid var(--accent-dim); border-radius:8px; padding:6px 10px; font-size:12px; font-family:var(--mono); color:var(--accent-bright); }
   .editing-banner.show{ display:flex; }
-  .editing-banner button{ background:none; border:none; color:var(--text-dim); font-size:14px; padding:2px 6px; }
+  .editing-banner button{ background:none; border:none; color:var(--text-dim); font-size:14px; padding:2px 6px; cursor:pointer; }
+  .editing-banner button:hover{ color:var(--danger); }
 
   /* ---- Sidebar / Drawer ---- */
   #sidebar, #modelDrawer { position:fixed; top:0; bottom:0; width:82%; background:var(--panel); z-index:50; display:flex; flex-direction:column; padding-top:env(safe-area-inset-top); transition:transform .22s ease; }
@@ -102,14 +164,18 @@
   #overlay.open, #modelOverlay.open{opacity:1; pointer-events:auto;}
   .sidebar-head, .drawer-head{ padding:16px 14px 10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
   .sidebar-title{font-family:var(--mono); font-size:13px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase;}
-  #newChatBtn{ background:var(--accent-dim); color:#f5edd6; border:none; border-radius:8px; padding:6px 10px; font-size:13px; font-family:var(--mono); font-weight:600; }
+  #newChatBtn{ background:var(--accent-dim); color:#f5edd6; border:none; border-radius:8px; padding:6px 10px; font-size:13px; font-family:var(--mono); font-weight:600; cursor:pointer; transition: background-color 0.2s ease; }
+  #newChatBtn:hover{ background:var(--accent); }
   #sessionList{flex:1; overflow-y:auto; padding:8px;}
-  .session-item{ display:flex; align-items:center; gap:8px; padding:11px 10px; border-radius:8px; margin-bottom:2px; color:var(--text-dim); font-size:14px; cursor:pointer; border:1px solid transparent; }
+  .session-item{ display:flex; align-items:center; gap:8px; padding:11px 10px; border-radius:8px; margin-bottom:2px; color:var(--text-dim); font-size:14px; cursor:pointer; border:1px solid transparent; transition: all 0.2s ease; }
   .session-item.active{ background:var(--panel-2); color:var(--text); border-color:var(--line); }
+  .session-item:hover:not(.active){ background:var(--panel-2); opacity:0.8; color:var(--text); }
   .session-item .stitle{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .session-del, .session-export{ color:var(--text-dim); font-size:14px; padding:3px 6px; border-radius:6px; flex-shrink:0; }
+  .session-del, .session-export{ color:var(--text-dim); font-size:14px; padding:3px 6px; border-radius:6px; flex-shrink:0; cursor:pointer; transition: all 0.2s ease; }
+  .session-del:hover{ background:var(--line); color:var(--danger); }
   .sidebar-foot{ padding:12px 14px calc(env(safe-area-inset-bottom) + 12px); border-top:1px solid var(--line); }
-  .sidebar-foot-btn{ width:100%; background:none; border:1px solid var(--line); color:var(--text-dim); padding:10px; border-radius:8px; font-size:13px; font-family:var(--mono); }
+  .sidebar-foot-btn{ width:100%; background:none; border:1px solid var(--line); color:var(--text-dim); padding:10px; border-radius:8px; font-size:13px; font-family:var(--mono); cursor:pointer; transition: all 0.2s ease; }
+  .sidebar-foot-btn:hover{ color:var(--danger); border-color:var(--danger); background:rgba(224, 128, 128, 0.05); }
 
   .drawer-body{ flex:1; overflow-y:auto; padding:14px; }
   .drawer-section{ margin-bottom:22px; }
@@ -156,10 +222,38 @@
   .field-hint{font-size:11px; color:var(--text-dim); margin-top:4px; line-height:1.4;}
   .field-row{ display:flex; gap:10px; }
   .field-row .field{ flex:1; }
-  #saveSettings{ width:100%; background:var(--accent-bright); color:#0d0f0e; border:none; padding:13px; border-radius:10px; font-size:15px; font-weight:700; margin-top:6px; }
+  #saveSettings{ width:100%; background:var(--accent-bright); color:#0d0f0e; border:none; padding:13px; border-radius:10px; font-size:15px; font-weight:700; margin-top:6px; cursor:pointer; }
   #saveSettings:active{opacity:0.85;}
   .settings-divider{ height:1px; background:var(--line); margin:22px 0; }
   .rot-box { background: rgba(201, 162, 39, 0.05); border: 1px solid var(--accent-dim); padding: 12px; border-radius: 8px; margin-bottom:16px; }
+
+  /* ---- Toast notification (replaces alert()) ---- */
+  #toast {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom) + 80px);
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  #toast.toast-error { border-color: var(--danger); color: var(--danger); }
+  #toast.toast-success { border-color: var(--accent-dim); color: var(--accent-bright); }
 </style>
 </head>
 <body>
@@ -183,7 +277,7 @@
       <div class="empty-state" id="emptyState">
         <div class="empty-mark"></div>
         <h2>Belum ada percakapan</h2>
-        <p>Set endpoint & API key di tab Settings, lalu mulai ketik.</p>
+        <p>Set endpoint &amp; API key di tab Settings, lalu mulai ketik.</p>
       </div>
     </div>
 
@@ -193,7 +287,7 @@
         <button id="cancelEditBtn">Batal</button>
       </div>
       <div class="input-row">
-        <textarea id="textInput" placeholder="Ketik pesan..." rows="1"></textarea>
+        <textarea id="textInput" placeholder="Ketik pesan... (Enter kirim, Shift+Enter baris baru)" rows="1"></textarea>
         <button id="sendBtn" aria-label="Kirim">↑</button>
       </div>
       <div class="input-meta-row">
@@ -235,7 +329,6 @@
   <div class="view" id="view-settings">
     <div id="settingsScroll">
       
-      <!-- FITUR BARU: THEME -->
       <div class="field">
         <label>Tema Tampilan</label>
         <select id="uiTheme">
@@ -264,7 +357,7 @@
         <textarea id="systemPrompt" placeholder="Kamu adalah asisten yang ringkas dan langsung."></textarea>
       </div>
 
-      <!-- FITUR BARU: ROTASI -->
+      <!-- API Key Rotation -->
       <div class="rot-box">
         <h4 style="margin-top:0; color:var(--accent-bright); font-family:var(--mono);">🔄 API Key Rotation (Fallback)</h4>
         <div class="toggle-row" style="margin-bottom:10px;">
@@ -345,33 +438,89 @@
   </div>
 </div>
 
+<!-- Toast notification element -->
+<div id="toast"></div>
+
 <script>
 (function(){
   'use strict';
 
+  // ---------- Constants ----------
+  const USD_RATE_DEFAULT = 16300;
+
   // ---------- Storage keys ----------
-  const K_CFG = 'jimzai_config';
+  const K_CFG      = 'jimzai_config';
   const K_SESSIONS = 'jimzai_sessions';
-  const K_ACTIVE = 'jimzai_active_session';
+  const K_ACTIVE   = 'jimzai_active_session';
   const K_MODELPARAMS = 'jimzai_model_params';
-  const K_PRICING = 'jimzai_pricing_by_model';
-  const K_ROT = 'jimzai_rotation';
-  const K_THEME = 'jimzai_theme';
+  const K_PRICING  = 'jimzai_pricing_by_model';
+  const K_ROT      = 'jimzai_rotation';
+  const K_THEME    = 'jimzai_theme';
+
+  // ---------- Utilities ----------
+
+  /** FIX: Safe JSON.parse — corrupt localStorage won't crash the app */
+  function safeJsonParse(str, fallback) {
+    try { return str ? JSON.parse(str) : fallback; }
+    catch(e) { console.warn('safeJsonParse failed:', e); return fallback; }
+  }
+
+  /** FIX: Escape HTML to prevent XSS when inserting user content via innerHTML */
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /** FIX: Clipboard with execCommand fallback for HTTP / older browsers */
+  function copyToClipboard(text, onSuccess) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
+    } else {
+      fallbackCopy(text, onSuccess);
+    }
+  }
+  function fallbackCopy(text, onSuccess) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { if(document.execCommand('copy')) onSuccess(); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+
+  /** FIX: Toast replaces alert() — non-blocking, styled */
+  let toastTimer = null;
+  function showToast(msg, type = 'info', duration = 3000) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show' + (type === 'error' ? ' toast-error' : type === 'success' ? ' toast-success' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, duration);
+  }
 
   // ---------- State ----------
-  let config = JSON.parse(localStorage.getItem(K_CFG)) || {baseUrl:'', apiKey:'', model:'', systemPrompt:'', usdRate:16300};
-  let rotConfig = JSON.parse(localStorage.getItem(K_ROT)) || {enabled:false, model:'', keys:[], currentIndex:0};
-  let uiTheme = localStorage.getItem(K_THEME) || 'dark';
-  let sessions = JSON.parse(localStorage.getItem(K_SESSIONS)) || [];
-  let activeId = localStorage.getItem(K_ACTIVE) || null;
-  let modelParams = JSON.parse(localStorage.getItem(K_MODELPARAMS)) || {effort:'off', thinking:false};
-  let pricingByModel = JSON.parse(localStorage.getItem(K_PRICING)) || {};
-  let isStreaming = false;
+  let config       = safeJsonParse(localStorage.getItem(K_CFG), {baseUrl:'', apiKey:'', model:'', systemPrompt:'', usdRate: USD_RATE_DEFAULT});
+  let rotConfig    = safeJsonParse(localStorage.getItem(K_ROT), {enabled:false, model:'', keys:[], currentIndex:0});
+  let uiTheme      = localStorage.getItem(K_THEME) || 'dark';
+  let sessions     = safeJsonParse(localStorage.getItem(K_SESSIONS), []);
+  let activeId     = localStorage.getItem(K_ACTIVE) || null;
+  let modelParams  = safeJsonParse(localStorage.getItem(K_MODELPARAMS), {effort:'off', thinking:false});
+  let pricingByModel = safeJsonParse(localStorage.getItem(K_PRICING), {});
+  let isStreaming  = false;
   let editingIndex = null;
 
-  function currentPricing(){ return pricingByModel[config.model] || {input:0, output:0, cache:0}; }
+  function currentPricing(){
+    const activeModel = (rotConfig.enabled && rotConfig.model) ? rotConfig.model : config.model;
+    return pricingByModel[activeModel] || {input:0, output:0, cache:0};
+  }
   function getActiveSession(){ return sessions.find(s => s.id === activeId) || null; }
-  
+
   function applyTheme(theme) {
     document.body.classList.toggle('light-theme', theme === 'light');
   }
@@ -386,15 +535,24 @@
   }
   function ensureUsage(s){ if(!s.usage) s.usage = {inputTokens:0, outputTokens:0, cacheTokens:0}; return s.usage; }
 
-  // ---------- DOM refs ----------
-  const $messages = document.getElementById('messages');
-  const $emptyState = document.getElementById('emptyState');
-  const $textInput = document.getElementById('textInput');
-  const $sendBtn = document.getElementById('sendBtn');
-  const $charCounter = document.getElementById('charCounter');
-  const $modelLabel = document.getElementById('modelLabel');
+  // FIX: Create a session on startup if none exist (fixes empty Dashboard on first load)
+  if (sessions.length === 0) {
+    createSession();
+  } else if (!activeId || !sessions.find(s => s.id === activeId)) {
+    activeId = sessions[0].id;
+    localStorage.setItem(K_ACTIVE, activeId);
+  }
 
-  const $tabs = document.querySelectorAll('.tab');
+  // ---------- DOM refs ----------
+  const $messages    = document.getElementById('messages');
+  const $emptyState  = document.getElementById('emptyState');
+  const $textInput   = document.getElementById('textInput');
+  const $sendBtn     = document.getElementById('sendBtn');
+  const $charCounter = document.getElementById('charCounter');
+  const $modelLabel  = document.getElementById('modelLabel');
+  const $sessionList = document.getElementById('sessionList');
+
+  const $tabs  = document.querySelectorAll('.tab');
   const $views = { chat: document.getElementById('view-chat'), dashboard: document.getElementById('view-dashboard'), settings: document.getElementById('view-settings') };
 
   // Settings DOM
@@ -415,7 +573,71 @@
     });
   });
 
-  function renderModelLabel(){ $modelLabel.textContent = rotConfig.enabled && rotConfig.model ? `${rotConfig.model} (Rot)` : (config.model || 'belum diset'); }
+  function renderModelLabel(){
+    const activeModel = (rotConfig.enabled && rotConfig.model) ? rotConfig.model : config.model;
+    $modelLabel.textContent = rotConfig.enabled ? `${activeModel} (Rot)` : (config.model || 'belum diset');
+  }
+
+  // ---------- Sidebar sessions list ----------
+  function renderSidebar(){
+    $sessionList.innerHTML = '';
+    sessions.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'session-item' + (s.id === activeId ? ' active' : '');
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'stitle';
+      titleSpan.textContent = s.title || 'Percakapan baru'; // safe: textContent
+      titleSpan.addEventListener('click', () => {
+        activeId = s.id;
+        localStorage.setItem(K_ACTIVE, activeId);
+        renderMessages();
+        renderSidebar();
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('overlay').classList.remove('open');
+      });
+      item.appendChild(titleSpan);
+
+      // FIX: Export anchor appended to body so it works cross-browser (Firefox)
+      const exportBtn = document.createElement('button');
+      exportBtn.className = 'session-export';
+      exportBtn.textContent = '📥';
+      exportBtn.title = 'Ekspor sesi (JSON)';
+      exportBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(s, null, 2));
+        const a = document.createElement('a');
+        a.href = dataStr;
+        a.download = `chat_session_${s.id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+      item.appendChild(exportBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'session-del';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Hapus sesi';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if(confirm('Hapus sesi ini?')){
+          sessions = sessions.filter(sess => sess.id !== s.id);
+          localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+          if(activeId === s.id){
+            if(sessions.length === 0) createSession();
+            activeId = sessions[0].id;
+            localStorage.setItem(K_ACTIVE, activeId);
+          }
+          renderSidebar();
+          renderMessages();
+        }
+      });
+      item.appendChild(delBtn);
+
+      $sessionList.appendChild(item);
+    });
+  }
 
   // ---------- Messages ----------
   function renderMessages(){
@@ -423,30 +645,107 @@
     $messages.querySelectorAll('.msg-row').forEach(el => el.remove());
     if(!s || s.messages.length === 0){ $emptyState.style.display = 'flex'; return; }
     $emptyState.style.display = 'none';
-    s.messages.forEach((m, idx) => appendMessageDOM(m.role, m.content, false, idx));
+    s.messages.forEach((m, idx) => appendMessageDOM(m.role, m.content, false, idx, m.reasoning));
+    postProcessMessages();
     requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
   }
 
-  function appendMessageDOM(role, content, animate, idx){
+  function appendMessageDOM(role, content, animate, idx, reasoning){
     $emptyState.style.display = 'none';
     const row = document.createElement('div'); row.className = 'msg-row ' + role; row.dataset.idx = idx ?? '';
     const roleLine = document.createElement('div'); roleLine.className = 'msg-role-line';
     const label = document.createElement('span'); label.className = 'msg-role'; label.textContent = role === 'user' ? 'kamu' : 'jimz_ai';
     roleLine.appendChild(label);
-    
+
     const bubble = document.createElement('div'); bubble.className = 'bubble';
-    
-    // Fitur Markdown: Hanya parse kalau pesannya dari assistant
-    if(role === 'assistant' && typeof marked !== 'undefined'){
-      bubble.innerHTML = marked.parse(content);
+
+    if(role === 'assistant'){
+      let html = '';
+      // FIX: escape reasoning text before injecting into innerHTML (XSS prevention)
+      if(reasoning){
+        html += `<details class="thinking-block"><summary>Pemikiran (Thinking)</summary><div class="thinking-content">${escapeHtml(reasoning)}</div></details>`;
+      }
+      html += typeof marked !== 'undefined' ? marked.parse(content) : escapeHtml(content);
+      bubble.innerHTML = html;
     } else {
-      bubble.textContent = content;
+      bubble.textContent = content; // safe: textContent for user messages
     }
 
     row.appendChild(roleLine); row.appendChild(bubble);
+
+    // Message action buttons
+    if(idx !== undefined && idx !== null){
+      const actions = document.createElement('div'); actions.className = 'msg-actions';
+
+      // FIX: use copyToClipboard helper with fallback
+      const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.textContent = 'Salin';
+      copyBtn.addEventListener('click', () => {
+        copyToClipboard(content, () => {
+          copyBtn.textContent = 'Tersalin!';
+          setTimeout(() => copyBtn.textContent = 'Salin', 1500);
+        });
+      });
+      actions.appendChild(copyBtn);
+
+      if(role === 'user'){
+        const editBtn = document.createElement('button'); editBtn.className = 'msg-action-btn'; editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => {
+          editingIndex = idx;
+          $textInput.value = content;
+          $textInput.focus();
+          $textInput.style.height = 'auto';
+          $textInput.style.height = Math.min($textInput.scrollHeight, 120) + 'px';
+          $charCounter.textContent = content.length + ' char';
+          document.getElementById('editingBanner').classList.add('show');
+        });
+        actions.appendChild(editBtn);
+      }
+
+      const delBtn = document.createElement('button'); delBtn.className = 'msg-action-btn'; delBtn.textContent = 'Hapus';
+      delBtn.addEventListener('click', () => {
+        const s = getActiveSession();
+        if(!s) return;
+        if(role === 'user' && s.messages[idx+1] && s.messages[idx+1].role === 'assistant'){
+          s.messages.splice(idx, 2);
+        } else {
+          s.messages.splice(idx, 1);
+        }
+        localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+        if(editingIndex === idx){
+          editingIndex = null;
+          $textInput.value = '';
+          document.getElementById('editingBanner').classList.remove('show');
+        }
+        renderMessages();
+        renderSidebar();
+      });
+      actions.appendChild(delBtn);
+
+      row.appendChild(actions);
+    }
+
     $messages.appendChild(row);
     if(animate) requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
     return bubble;
+  }
+
+  function postProcessMessages() {
+    $messages.querySelectorAll('.bubble pre').forEach(pre => {
+      if (pre.querySelector('.code-copy-btn')) return;
+
+      const btn = document.createElement('button');
+      btn.className = 'code-copy-btn';
+      btn.textContent = 'Copy';
+      // FIX: use copyToClipboard helper with fallback
+      btn.addEventListener('click', () => {
+        const codeText = pre.querySelector('code')?.textContent || pre.textContent;
+        copyToClipboard(codeText, () => {
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy', 2000);
+        });
+      });
+      pre.appendChild(btn);
+    });
   }
 
   // ---------- Dashboard ----------
@@ -455,83 +754,167 @@
     const usage = s ? ensureUsage(s) : {inputTokens:0, outputTokens:0, cacheTokens:0};
     const pricing = currentPricing();
     const cost = ((usage.inputTokens/1000000)*(pricing.input||0)) + ((usage.outputTokens/1000000)*(pricing.output||0)) + ((usage.cacheTokens/1000000)*(pricing.cache||0));
-    
+
     $dashCostUsd.textContent = '$' + cost.toFixed(6);
-    $dashCostIdr.textContent = 'Rp ' + Math.round(cost * (config.usdRate||16300)).toLocaleString('id-ID');
+    $dashCostIdr.textContent = 'Rp ' + Math.round(cost * (config.usdRate || USD_RATE_DEFAULT)).toLocaleString('id-ID');
     $dashInputTok.textContent = usage.inputTokens.toLocaleString('id-ID');
     $dashOutputTok.textContent = usage.outputTokens.toLocaleString('id-ID');
-    
+
     const msgCount = s ? s.messages.length : 0;
     $dashMsgCount.textContent = msgCount;
-    $dashAvgMsg.textContent = '$' + (msgCount > 0 ? (cost/msgCount).toFixed(6) : 0);
-    
+    $dashAvgMsg.textContent = '$' + (msgCount > 0 ? (cost/msgCount).toFixed(6) : '0.000000');
+
     $priceInput.textContent = '$' + (pricing.input || 0); $priceOutput.textContent = '$' + (pricing.output || 0); $priceCache.textContent = '$' + (pricing.cache || 0);
-    
+
     $historyList.innerHTML = '';
     sessions.forEach(sess => {
       const u = ensureUsage(sess);
-      const c = ((u.inputTokens/1000000)*(pricing.input||0)) + ((u.outputTokens/1000000)*(pricing.output||0));
+      const c = ((u.inputTokens/1000000)*(pricing.input||0)) + ((u.outputTokens/1000000)*(pricing.output||0)) + ((u.cacheTokens/1000000)*(pricing.cache||0));
       const dateStr = new Date(sess.createdAt).toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
       const item = document.createElement('div'); item.className = 'history-item';
-      item.innerHTML = `<div class="history-item-top"><span>${dateStr}</span><span>$${c.toFixed(6)}</span></div><div class="history-item-title">${sess.title || 'Chat'}</div>`;
+      // FIX: Use textContent for session title — prevents XSS from user-supplied session names
+      const topDiv = document.createElement('div'); topDiv.className = 'history-item-top';
+      const dateSpan = document.createElement('span'); dateSpan.textContent = dateStr;
+      const costSpan = document.createElement('span'); costSpan.textContent = '$' + c.toFixed(6);
+      topDiv.appendChild(dateSpan); topDiv.appendChild(costSpan);
+      const titleDiv = document.createElement('div'); titleDiv.className = 'history-item-title';
+      titleDiv.textContent = sess.title || 'Chat'; // safe: textContent
+      item.appendChild(topDiv); item.appendChild(titleDiv);
       $historyList.appendChild(item);
     });
   }
 
   // ---------- Settings Form ----------
   $uiThemeSelect.value = uiTheme;
-  $baseUrl.value = config.baseUrl; $apiKey.value = config.apiKey; $modelName.value = config.model; $systemPrompt.value = config.systemPrompt; $usdRate.value = config.usdRate;
-  $rotToggle.checked = rotConfig.enabled; $rotModel.value = rotConfig.model; $rotKeys.value = rotConfig.keys.join('\n');
-  
+  $baseUrl.value = config.baseUrl; $apiKey.value = config.apiKey; $modelName.value = config.model; $systemPrompt.value = config.systemPrompt; $usdRate.value = config.usdRate || USD_RATE_DEFAULT;
+  $rotToggle.checked = rotConfig.enabled; $rotModel.value = rotConfig.model; $rotKeys.value = (rotConfig.keys || []).join('\n');
+
   const p = currentPricing();
   $priceInputField.value = p.input||''; $priceOutputField.value = p.output||''; $priceCacheField.value = p.cache||'';
 
+  $modelName.addEventListener('change', () => {
+    const mName = $modelName.value.trim();
+    if(mName) {
+      const pricing = pricingByModel[mName] || {input:0, output:0, cache:0};
+      $priceInputField.value = pricing.input||'';
+      $priceOutputField.value = pricing.output||'';
+      $priceCacheField.value = pricing.cache||'';
+    }
+  });
+
   document.getElementById('saveSettings').addEventListener('click', () => {
-    config.baseUrl = $baseUrl.value.trim().replace(/\/$/, ''); config.apiKey = $apiKey.value.trim(); config.model = $modelName.value.trim(); config.systemPrompt = $systemPrompt.value; config.usdRate = parseFloat($usdRate.value)||16300;
+    config.baseUrl = $baseUrl.value.trim().replace(/\/$/, '');
+    config.apiKey = $apiKey.value.trim();
+    config.model = $modelName.value.trim();
+    config.systemPrompt = $systemPrompt.value;
+    config.usdRate = parseFloat($usdRate.value) || USD_RATE_DEFAULT;
     uiTheme = $uiThemeSelect.value;
-    
-    rotConfig.enabled = $rotToggle.checked; rotConfig.model = $rotModel.value.trim();
-    rotConfig.keys = $rotKeys.value.split('\n').map(k=>k.trim()).filter(k=>k);
-    
+
+    rotConfig.enabled = $rotToggle.checked;
+    rotConfig.model = $rotModel.value.trim();
+    const newKeys = $rotKeys.value.split('\n').map(k=>k.trim()).filter(k=>k);
+    // FIX: Reset index if key list changed to avoid pointing at wrong key
+    if(JSON.stringify(newKeys) !== JSON.stringify(rotConfig.keys)) {
+      rotConfig.currentIndex = 0;
+    }
+    rotConfig.keys = newKeys;
+    if(rotConfig.keys.length > 0) {
+      rotConfig.currentIndex = rotConfig.currentIndex % rotConfig.keys.length;
+    } else {
+      rotConfig.currentIndex = 0;
+    }
+
     if(config.model) pricingByModel[config.model] = { input: parseFloat($priceInputField.value)||0, output: parseFloat($priceOutputField.value)||0, cache: parseFloat($priceCacheField.value)||0 };
-    
-    localStorage.setItem(K_CFG, JSON.stringify(config)); localStorage.setItem(K_PRICING, JSON.stringify(pricingByModel));
-    localStorage.setItem(K_ROT, JSON.stringify(rotConfig)); localStorage.setItem(K_THEME, uiTheme);
-    
+
+    localStorage.setItem(K_CFG, JSON.stringify(config));
+    localStorage.setItem(K_PRICING, JSON.stringify(pricingByModel));
+    localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
+    localStorage.setItem(K_THEME, uiTheme);
+
     applyTheme(uiTheme); renderModelLabel();
-    const st = document.getElementById('settingsStatus'); st.textContent = 'Tersimpan!'; setTimeout(()=>st.textContent='', 1500);
+    showToast('Tersimpan!', 'success');
+    document.getElementById('settingsStatus').textContent = '';
   });
 
-  // ---------- Send & Stream (With Auto-Rotate Retry) ----------
-  $sendBtn.addEventListener('click', async () => {
+  // ---------- Send & Stream ----------
+  async function doSend() {
     const text = $textInput.value.trim(); if(!text || isStreaming) return;
+
+    // FIX: showToast replaces alert() for non-blocking error feedback
+    if(!config.baseUrl) {
+      showToast('Mohon atur Base URL di tab Settings terlebih dahulu!', 'error', 4000);
+      return;
+    }
+
     let s = getActiveSession(); if(!s){ s = createSession(); }
-    s.messages.push({role:'user', content:text});
-    if(s.messages.length === 1) s.title = text.slice(0, 40);
+
+    if(editingIndex !== null){
+      s.messages[editingIndex].content = text;
+      s.messages = s.messages.slice(0, editingIndex + 1);
+      editingIndex = null;
+      document.getElementById('editingBanner').classList.remove('show');
+    } else {
+      s.messages.push({role:'user', content:text});
+      if(s.messages.length === 1) s.title = text.slice(0, 40);
+    }
+
     localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
-    
-    renderMessages(); $textInput.value = ''; $charCounter.textContent = '0 char';
+
+    renderMessages();
+    $textInput.value = '';
+    $charCounter.textContent = '0 char';
+    $textInput.style.height = 'auto';
+    renderSidebar();
+
     await streamAssistantReply(s);
+  }
+
+  $sendBtn.addEventListener('click', doSend);
+
+  $textInput.addEventListener('input', () => {
+    $textInput.style.height='auto';
+    $textInput.style.height=Math.min($textInput.scrollHeight, 120)+'px';
+    $charCounter.textContent = $textInput.value.length+' char';
   });
 
-  $textInput.addEventListener('input', () => { $textInput.style.height='auto'; $textInput.style.height=Math.min($textInput.scrollHeight, 120)+'px'; $charCounter.textContent = $textInput.value.length+' char'; });
+  // FIX: Enter-to-send (Shift+Enter = newline)
+  $textInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      doSend();
+    }
+  });
+
+  document.getElementById('cancelEditBtn').addEventListener('click', () => {
+    editingIndex = null;
+    $textInput.value = '';
+    $textInput.style.height = 'auto';
+    $charCounter.textContent = '0 char';
+    document.getElementById('editingBanner').classList.remove('show');
+  });
 
   async function streamAssistantReply(session){
     isStreaming = true; $sendBtn.disabled = true;
     const bubble = appendMessageDOM('assistant', '', true);
     bubble.classList.add('streaming');
-    let fullText = '', usageData = null;
+    let fullText = '', reasoningText = '', usageData = null;
 
     const apiMsgs = config.systemPrompt ? [{role:'system', content:config.systemPrompt}] : [];
-    session.messages.forEach(m => apiMsgs.push(m));
-    
-    let maxTries = (rotConfig.enabled && rotConfig.keys.length > 0) ? rotConfig.keys.length : 1;
-    let attempt = 0, success = false;
+    session.messages.forEach(m => apiMsgs.push({role: m.role, content: m.content}));
 
-    while(attempt < maxTries && !success){
+    // FIX: Rotation retry — separate maxTries for 429 rotation from total attempt limit.
+    // Non-429 errors don't consume rotation slots; 429 errors rotate the key and retry.
+    // We allow up to keys.length rotations for 429, plus 1 attempt for any other error.
+    const rotKeyCount = (rotConfig.enabled && rotConfig.keys.length > 0) ? rotConfig.keys.length : 0;
+    let rotationsUsed = 0;
+    let success = false;
+    let lastError = null;
+
+    while(!success){
       let currKey = config.apiKey, currModel = config.model;
       if(rotConfig.enabled && rotConfig.keys.length > 0){
-        currKey = rotConfig.keys[rotConfig.currentIndex];
+        const idx = (rotConfig.currentIndex ?? 0) % rotConfig.keys.length;
+        currKey = rotConfig.keys[idx];
         currModel = rotConfig.model || config.model;
       }
 
@@ -540,15 +923,21 @@
         if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
         if(modelParams.thinking) body.thinking = true;
 
-        const resp = await fetch(config.baseUrl + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey }, body: JSON.stringify(body) });
+        const resp = await fetch(config.baseUrl + '/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey },
+          body: JSON.stringify(body)
+        });
 
         if(!resp.ok){
-          if(resp.status === 429 && rotConfig.enabled && rotConfig.keys.length > 0){
-             rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
-             localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
-             attempt++; continue; // Retry with next key
+          // FIX: Only rotate on 429; other HTTP errors are terminal immediately
+          if(resp.status === 429 && rotKeyCount > 0 && rotationsUsed < rotKeyCount - 1){
+            rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
+            localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
+            rotationsUsed++;
+            continue;
           }
-          throw new Error('HTTP ' + resp.status);
+          throw new Error('HTTP ' + resp.status + (resp.status === 429 ? ' (Rate limit — semua key habis)' : ''));
         }
 
         const reader = resp.body.getReader(); const decoder = new TextDecoder('utf-8'); let buffer = '';
@@ -562,9 +951,26 @@
             try{
               const json = JSON.parse(payload);
               const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
-              if(delta){
-                fullText += delta;
-                bubble.innerHTML = typeof marked !== 'undefined' ? marked.parse(fullText) : fullText;
+              const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
+
+              if(reasoningDelta) reasoningText += reasoningDelta;
+              if(delta) fullText += delta;
+
+              if(delta || reasoningDelta) {
+                let bubbleHtml = '';
+                // FIX: escape reasoningText before injecting into innerHTML (XSS prevention)
+                if(reasoningText){
+                  bubbleHtml += `
+                    <details class="thinking-block" open>
+                      <summary>Pemikiran (Thinking)...</summary>
+                      <div class="thinking-content">${escapeHtml(reasoningText)}</div>
+                    </details>
+                  `;
+                }
+                if(fullText){
+                  bubbleHtml += typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
+                }
+                bubble.innerHTML = bubbleHtml;
                 requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
               }
               if(json?.usage) usageData = json.usage;
@@ -573,36 +979,125 @@
         }
         success = true;
       } catch(err) {
-        if(attempt >= maxTries - 1){
-          bubble.classList.remove('streaming');
-          bubble.textContent = 'Gagal: ' + err.message;
-          bubble.closest('.msg-row').classList.replace('assistant', 'error');
-          isStreaming = false; $sendBtn.disabled = false;
-          return;
-        }
-        attempt++;
+        lastError = err;
+        break; // Non-429 or exhausted rotations — exit loop
       }
     }
 
     bubble.classList.remove('streaming');
-    session.messages.push({role:'assistant', content: fullText});
-    
+
+    if(!success){
+      bubble.textContent = 'Gagal: ' + (lastError?.message || 'Unknown error');
+      bubble.closest('.msg-row').classList.replace('assistant', 'error');
+      isStreaming = false; $sendBtn.disabled = false;
+      return;
+    }
+
+    session.messages.push({role:'assistant', content: fullText, reasoning: reasoningText});
+
     const usage = ensureUsage(session);
-    if(usageData){ usage.inputTokens += usageData.prompt_tokens||0; usage.outputTokens += usageData.completion_tokens||0; usage.cacheTokens += usageData.prompt_tokens_details?.cached_tokens||0; }
+    if(usageData){
+      usage.inputTokens  += usageData.prompt_tokens||0;
+      usage.outputTokens += usageData.completion_tokens||0;
+      usage.cacheTokens  += usageData.prompt_tokens_details?.cached_tokens||0;
+    }
     localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
-    
+
     isStreaming = false; $sendBtn.disabled = false;
-    renderMessages();
+
+    // FIX: Don't call full renderMessages() after streaming — it resets <details> open state.
+    // Instead just attach copy buttons to newly streamed code blocks.
+    postProcessMessages();
+    renderSidebar();
   }
 
-  // Drawers and init
-  document.getElementById('menuBtn').addEventListener('click', () => { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('open'); });
-  document.getElementById('overlay').addEventListener('click', () => { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); });
-  document.getElementById('newChatBtn').addEventListener('click', () => { createSession(); renderMessages(); document.getElementById('overlay').click(); });
-  document.getElementById('modelDrawerBtn').addEventListener('click', () => { document.getElementById('modelDrawer').classList.add('open'); document.getElementById('modelOverlay').classList.add('open'); });
-  document.getElementById('closeModelDrawer').addEventListener('click', () => { document.getElementById('modelDrawer').classList.remove('open'); document.getElementById('modelOverlay').classList.remove('open'); });
+  // ---------- Model settings controls ----------
+  function renderEffortIndicator(){
+    const eff = modelParams.effort || 'off';
+    const think = modelParams.thinking;
+    const parts = [];
+    if(eff !== 'off') parts.push(`Reasoning: ${eff}`);
+    if(think) parts.push('Thinking: On');
+    document.getElementById('effortIndicator').textContent = parts.join(' | ');
+  }
 
-  renderModelLabel(); renderMessages();
+  document.querySelectorAll('#effortSegmented button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#effortSegmented button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      modelParams.effort = btn.dataset.val;
+      localStorage.setItem(K_MODELPARAMS, JSON.stringify(modelParams));
+      renderEffortIndicator();
+    });
+  });
+
+  document.getElementById('thinkingToggle').addEventListener('change', function() {
+    modelParams.thinking = this.checked;
+    localStorage.setItem(K_MODELPARAMS, JSON.stringify(modelParams));
+    renderEffortIndicator();
+  });
+
+  // Drawers and overlays
+  document.getElementById('menuBtn').addEventListener('click', () => {
+    renderSidebar();
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('overlay').classList.add('open');
+  });
+  document.getElementById('overlay').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+  });
+
+  document.getElementById('newChatBtn').addEventListener('click', () => {
+    createSession();
+    renderMessages();
+    renderSidebar();
+    document.getElementById('overlay').click();
+  });
+
+  document.getElementById('clearAllBtn').addEventListener('click', () => {
+    if(confirm('Apakah Anda yakin ingin menghapus semua sesi?')){
+      sessions = [];
+      createSession();
+      renderSidebar();
+      renderMessages();
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('overlay').classList.remove('open');
+    }
+  });
+
+  document.getElementById('modelDrawerBtn').addEventListener('click', () => {
+    const effort = modelParams.effort || 'off';
+    document.querySelectorAll('#effortSegmented button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.val === effort);
+    });
+    document.getElementById('thinkingToggle').checked = !!modelParams.thinking;
+    document.getElementById('modelDrawer').classList.add('open');
+    document.getElementById('modelOverlay').classList.add('open');
+  });
+  document.getElementById('closeModelDrawer').addEventListener('click', () => {
+    document.getElementById('modelDrawer').classList.remove('open');
+    document.getElementById('modelOverlay').classList.remove('open');
+  });
+  document.getElementById('modelOverlay').addEventListener('click', () => {
+    document.getElementById('modelDrawer').classList.remove('open');
+    document.getElementById('modelOverlay').classList.remove('open');
+  });
+
+  // ---------- Service Worker Registration ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('ServiceWorker registered:', reg))
+        .catch(err => console.error('ServiceWorker registration failed:', err));
+    });
+  }
+
+  // ---------- Init ----------
+  renderModelLabel();
+  renderMessages();
+  renderSidebar();
+  renderEffortIndicator();
 })();
 </script>
 </body>

@@ -1,5 +1,15 @@
-const CACHE_NAME = 'relay-cache-v2';
-const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE_NAME = 'relay-cache-v3';
+// FIX: Bumped cache version so existing users get the updated index.html immediately
+const ASSETS = [
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js'
+];
+
+// Shell resources that should always be freshly fetched (network-first)
+const NETWORK_FIRST = ['./index.html', './sw.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -18,22 +28,40 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-first for API calls, cache-first for shell assets
-  const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return; // let API POSTs pass through untouched
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request)
+  const url = new URL(event.request.url);
+  const pathname = url.pathname;
+  const isNetworkFirst = NETWORK_FIRST.some(p => pathname.endsWith(p.replace('./', '/')));
+
+  if (isNetworkFirst) {
+    // FIX: Network-first for index.html — users get new versions immediately on deploy
+    event.respondWith(
+      fetch(event.request)
         .then((networkResp) => {
-          if (networkResp && networkResp.status === 200 && url.origin === self.location.origin) {
+          if (networkResp && networkResp.status === 200) {
             const clone = networkResp.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
           return networkResp;
         })
-        .catch(() => cached);
-      return cached || fetchPromise;
-    })
-  );
+        .catch(() => caches.match(event.request)) // fall back to cache if offline
+    );
+  } else {
+    // Cache-first for static assets (icons, CDN scripts)
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        const fetchPromise = fetch(event.request)
+          .then((networkResp) => {
+            if (networkResp && networkResp.status === 200 && url.origin === self.location.origin) {
+              const clone = networkResp.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            }
+            return networkResp;
+          })
+          .catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+  }
 });
