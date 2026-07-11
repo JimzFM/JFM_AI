@@ -34,7 +34,7 @@
 
   /* ---- Top bar ---- */
   #topbar{ display:flex; align-items:center; gap:10px; padding:calc(env(safe-area-inset-top) + 10px) 14px 10px 14px; background:var(--panel); border-bottom:1px solid var(--line); flex-shrink:0; }
-  .iconbtn{ background:none; border:none; color:var(--text); font-size:20px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px; flex-shrink:0; }
+  .iconbtn{ background:none; border:none; color:var(--text); font-size:20px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px; flex-shrink:0; cursor:pointer; }
   .iconbtn:active{background:var(--panel-2);}
   .brand{ display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
   .brand-mark{ width:22px; height:22px; border-radius:5px; flex-shrink:0; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
@@ -76,7 +76,8 @@
   /* Markdown Fixes */
   .bubble p { margin: 0 0 10px 0; }
   .bubble p:last-child { margin: 0; }
-  .bubble pre { background: var(--panel-2); padding: 10px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); }
+  /* FIX: merged duplicate .bubble pre rules into one */
+  .bubble pre { position: relative; background: var(--panel-2); padding: 10px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); }
   .bubble code { font-family: var(--mono); background: var(--panel-2); padding: 2px 4px; border-radius: 4px; font-size: 13px; }
 
   .msg-actions{ display:flex; gap:6px; margin-top:4px; }
@@ -112,7 +113,6 @@
   }
 
   /* Code block copy button styling */
-  .bubble pre { position: relative; }
   .code-copy-btn {
     position: absolute;
     top: 6px;
@@ -329,8 +329,9 @@
   <div class="view" id="view-settings">
     <div id="settingsScroll">
       
+      <!-- FIX: all labels now have for= attributes linking to their inputs (accessibility) -->
       <div class="field">
-        <label>Tema Tampilan</label>
+        <label for="uiTheme">Tema Tampilan</label>
         <select id="uiTheme">
           <option value="dark">Dark Mode (Default)</option>
           <option value="light">Light Mode</option>
@@ -338,22 +339,22 @@
       </div>
 
       <div class="field">
-        <label>Base URL</label>
+        <label for="baseUrl">Base URL</label>
         <input id="baseUrl" type="text" placeholder="https://api.aivene.com/v1" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
 
       <div class="field">
-        <label>API Key Utama</label>
+        <label for="apiKey">API Key Utama</label>
         <input id="apiKey" type="password" placeholder="sk-..." autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
 
       <div class="field">
-        <label>Model Utama</label>
+        <label for="modelName">Model Utama</label>
         <input id="modelName" type="text" placeholder="qwen3.7-plus" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
 
       <div class="field">
-        <label>System Prompt (opsional)</label>
+        <label for="systemPrompt">System Prompt (opsional)</label>
         <textarea id="systemPrompt" placeholder="Kamu adalah asisten yang ringkas dan langsung."></textarea>
       </div>
 
@@ -365,12 +366,12 @@
           <label class="switch"><input type="checkbox" id="rotToggle"><span class="switch-track"></span></label>
         </div>
         <div class="field">
-          <label>Model Khusus Rotasi (Bila Beda)</label>
+          <label for="rotModel">Model Khusus Rotasi (Bila Beda)</label>
           <input id="rotModel" type="text" placeholder="gemini-3.1-pro">
         </div>
         <div class="field">
-          <label>Daftar API Key (Maks 10, pisahkan dengan Enter)</label>
-          <textarea id="rotKeys" placeholder="sk-key1...\nsk-key2..." rows="3"></textarea>
+          <label for="rotKeys">Daftar API Key (Maks 10, pisahkan dengan Enter)</label>
+          <textarea id="rotKeys" placeholder="sk-key1...&#10;sk-key2..." rows="3"></textarea>
           <div class="field-hint">Otomatis ganti key dari daftar ini jika server membalas limit (Error 429).</div>
         </div>
       </div>
@@ -378,22 +379,22 @@
       <div class="settings-divider"></div>
 
       <div class="field">
-        <label>Harga model ini — Input ($ / 1M token)</label>
+        <label for="priceInputField">Harga model ini — Input ($ / 1M token)</label>
         <input id="priceInputField" type="number" step="0.01" placeholder="3.00" inputmode="decimal">
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Output ($ / 1M)</label>
+          <label for="priceOutputField">Output ($ / 1M)</label>
           <input id="priceOutputField" type="number" step="0.01" placeholder="15.00" inputmode="decimal">
         </div>
         <div class="field">
-          <label>Cache Read ($ / 1M)</label>
+          <label for="priceCacheField">Cache Read ($ / 1M)</label>
           <input id="priceCacheField" type="number" step="0.01" placeholder="0.30" inputmode="decimal">
         </div>
       </div>
-      
+
       <div class="field">
-        <label>Kurs (Rp per 1 USD)</label>
+        <label for="usdRate">Kurs (Rp per 1 USD)</label>
         <input id="usdRate" type="number" step="1" placeholder="16300" inputmode="numeric">
       </div>
 
@@ -439,7 +440,8 @@
 </div>
 
 <!-- Toast notification element -->
-<div id="toast"></div>
+<!-- FIX: role=alert so screen readers announce toast messages -->
+<div id="toast" role="alert" aria-live="polite"></div>
 
 <script>
 (function(){
@@ -736,9 +738,12 @@
       const btn = document.createElement('button');
       btn.className = 'code-copy-btn';
       btn.textContent = 'Copy';
-      // FIX: use copyToClipboard helper with fallback
+      // FIX: exclude the button node itself so "Copy"/"Copied!" text isn't included in copied content
       btn.addEventListener('click', () => {
-        const codeText = pre.querySelector('code')?.textContent || pre.textContent;
+        const codeEl = pre.querySelector('code');
+        const codeText = codeEl
+          ? codeEl.textContent
+          : [...pre.childNodes].filter(n => n !== btn).map(n => n.textContent).join('');
         copyToClipboard(codeText, () => {
           btn.textContent = 'Copied!';
           setTimeout(() => btn.textContent = 'Copy', 2000);
@@ -893,6 +898,16 @@
     document.getElementById('editingBanner').classList.remove('show');
   });
 
+  // FIX: Friendly HTTP error map
+  const HTTP_ERRORS = {
+    401: 'API Key tidak valid atau expired (401)',
+    403: 'Akses ditolak — periksa izin API Key (403)',
+    404: 'Endpoint tidak ditemukan — periksa Base URL (404)',
+    429: 'Rate limit — semua key sudah habis (429)',
+    500: 'Server error — coba lagi nanti (500)',
+    503: 'Layanan tidak tersedia — coba lagi nanti (503)',
+  };
+
   async function streamAssistantReply(session){
     isStreaming = true; $sendBtn.disabled = true;
     const bubble = appendMessageDOM('assistant', '', true);
@@ -902,113 +917,125 @@
     const apiMsgs = config.systemPrompt ? [{role:'system', content:config.systemPrompt}] : [];
     session.messages.forEach(m => apiMsgs.push({role: m.role, content: m.content}));
 
-    // FIX: Rotation retry — separate maxTries for 429 rotation from total attempt limit.
-    // Non-429 errors don't consume rotation slots; 429 errors rotate the key and retry.
-    // We allow up to keys.length rotations for 429, plus 1 attempt for any other error.
     const rotKeyCount = (rotConfig.enabled && rotConfig.keys.length > 0) ? rotConfig.keys.length : 0;
     let rotationsUsed = 0;
     let success = false;
     let lastError = null;
 
-    while(!success){
-      let currKey = config.apiKey, currModel = config.model;
-      if(rotConfig.enabled && rotConfig.keys.length > 0){
-        const idx = (rotConfig.currentIndex ?? 0) % rotConfig.keys.length;
-        currKey = rotConfig.keys[idx];
-        currModel = rotConfig.model || config.model;
-      }
-
-      try {
-        const body = { model: currModel, messages: apiMsgs, stream: true };
-        if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
-        if(modelParams.thinking) body.thinking = true;
-
-        const resp = await fetch(config.baseUrl + '/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey },
-          body: JSON.stringify(body)
-        });
-
-        if(!resp.ok){
-          // FIX: Only rotate on 429; other HTTP errors are terminal immediately
-          if(resp.status === 429 && rotKeyCount > 0 && rotationsUsed < rotKeyCount - 1){
-            rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
-            localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
-            rotationsUsed++;
-            continue;
-          }
-          throw new Error('HTTP ' + resp.status + (resp.status === 429 ? ' (Rate limit — semua key habis)' : ''));
+    // FIX: try/finally guarantees isStreaming + sendBtn are ALWAYS reset, even on uncaught exceptions
+    try {
+      while(!success){
+        let currKey = config.apiKey, currModel = config.model;
+        if(rotConfig.enabled && rotConfig.keys.length > 0){
+          const idx = (rotConfig.currentIndex ?? 0) % rotConfig.keys.length;
+          currKey = rotConfig.keys[idx];
+          currModel = rotConfig.model || config.model;
         }
 
-        const reader = resp.body.getReader(); const decoder = new TextDecoder('utf-8'); let buffer = '';
-        while(true){
-          const {done, value} = await reader.read(); if(done) break;
-          buffer += decoder.decode(value, {stream:true});
-          const lines = buffer.split('\n'); buffer = lines.pop();
-          for(const line of lines){
-            const trimmed = line.trim(); if(!trimmed.startsWith('data:')) continue;
-            const payload = trimmed.slice(5).trim(); if(payload === '[DONE]') continue;
-            try{
-              const json = JSON.parse(payload);
-              const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
-              const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
+        // FIX: AbortController with 30s connection timeout per attempt
+        const controller = new AbortController();
+        const connectTimeout = setTimeout(() => controller.abort(), 30000);
 
-              if(reasoningDelta) reasoningText += reasoningDelta;
-              if(delta) fullText += delta;
+        try {
+          const body = { model: currModel, messages: apiMsgs, stream: true };
+          if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
+          if(modelParams.thinking) body.thinking = true;
 
-              if(delta || reasoningDelta) {
-                let bubbleHtml = '';
-                // FIX: escape reasoningText before injecting into innerHTML (XSS prevention)
-                if(reasoningText){
-                  bubbleHtml += `
-                    <details class="thinking-block" open>
-                      <summary>Pemikiran (Thinking)...</summary>
-                      <div class="thinking-content">${escapeHtml(reasoningText)}</div>
-                    </details>
-                  `;
-                }
-                if(fullText){
-                  bubbleHtml += typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
-                }
-                bubble.innerHTML = bubbleHtml;
-                requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
-              }
-              if(json?.usage) usageData = json.usage;
-            }catch(e){}
+          const resp = await fetch(config.baseUrl + '/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey },
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+          clearTimeout(connectTimeout); // Connected — cancel connection timeout
+
+          if(!resp.ok){
+            // Only rotate on 429; other HTTP errors are terminal immediately
+            if(resp.status === 429 && rotKeyCount > 0 && rotationsUsed < rotKeyCount - 1){
+              rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
+              localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
+              rotationsUsed++;
+              continue;
+            }
+            // FIX: Friendly error message for known HTTP status codes
+            throw new Error(HTTP_ERRORS[resp.status] || `HTTP ${resp.status}`);
           }
+
+          const reader = resp.body.getReader(); const decoder = new TextDecoder('utf-8'); let buffer = '';
+          while(true){
+            const {done, value} = await reader.read(); if(done) break;
+            buffer += decoder.decode(value, {stream:true});
+            const lines = buffer.split('\n'); buffer = lines.pop();
+            for(const line of lines){
+              const trimmed = line.trim(); if(!trimmed.startsWith('data:')) continue;
+              const payload = trimmed.slice(5).trim(); if(payload === '[DONE]') continue;
+              try{
+                const json = JSON.parse(payload);
+                const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
+                const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
+
+                if(reasoningDelta) reasoningText += reasoningDelta;
+                if(delta) fullText += delta;
+
+                if(delta || reasoningDelta) {
+                  let bubbleHtml = '';
+                  if(reasoningText){
+                    bubbleHtml += `
+                      <details class="thinking-block" open>
+                        <summary>Pemikiran (Thinking)...</summary>
+                        <div class="thinking-content">${escapeHtml(reasoningText)}</div>
+                      </details>
+                    `;
+                  }
+                  if(fullText){
+                    bubbleHtml += typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
+                  }
+                  bubble.innerHTML = bubbleHtml;
+                  requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
+                }
+                if(json?.usage) usageData = json.usage;
+              }catch(e){}
+            }
+          }
+          success = true;
+        } catch(err) {
+          clearTimeout(connectTimeout);
+          // FIX: AbortError = connection timed out
+          if(err.name === 'AbortError') {
+            lastError = new Error('Timeout: server tidak merespons dalam 30 detik');
+          } else {
+            lastError = err;
+          }
+          break;
         }
-        success = true;
-      } catch(err) {
-        lastError = err;
-        break; // Non-429 or exhausted rotations — exit loop
       }
+
+      if(!success){
+        bubble.textContent = 'Gagal: ' + (lastError?.message || 'Unknown error');
+        bubble.closest('.msg-row').classList.replace('assistant', 'error');
+        return;
+      }
+
+      session.messages.push({role:'assistant', content: fullText, reasoning: reasoningText});
+
+      const usage = ensureUsage(session);
+      if(usageData){
+        usage.inputTokens  += usageData.prompt_tokens||0;
+        usage.outputTokens += usageData.completion_tokens||0;
+        usage.cacheTokens  += usageData.prompt_tokens_details?.cached_tokens||0;
+      }
+      localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+
+      // Don't call full renderMessages() after streaming — it resets <details> open state.
+      // Instead just attach copy buttons to newly streamed code blocks.
+      postProcessMessages();
+      renderSidebar();
+    } finally {
+      // Always runs — even if an unexpected exception escapes the loops above
+      bubble.classList.remove('streaming');
+      isStreaming = false;
+      $sendBtn.disabled = false;
     }
-
-    bubble.classList.remove('streaming');
-
-    if(!success){
-      bubble.textContent = 'Gagal: ' + (lastError?.message || 'Unknown error');
-      bubble.closest('.msg-row').classList.replace('assistant', 'error');
-      isStreaming = false; $sendBtn.disabled = false;
-      return;
-    }
-
-    session.messages.push({role:'assistant', content: fullText, reasoning: reasoningText});
-
-    const usage = ensureUsage(session);
-    if(usageData){
-      usage.inputTokens  += usageData.prompt_tokens||0;
-      usage.outputTokens += usageData.completion_tokens||0;
-      usage.cacheTokens  += usageData.prompt_tokens_details?.cached_tokens||0;
-    }
-    localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
-
-    isStreaming = false; $sendBtn.disabled = false;
-
-    // FIX: Don't call full renderMessages() after streaming — it resets <details> open state.
-    // Instead just attach copy buttons to newly streamed code blocks.
-    postProcessMessages();
-    renderSidebar();
   }
 
   // ---------- Model settings controls ----------
