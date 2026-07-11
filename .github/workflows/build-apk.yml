@@ -27,10 +27,8 @@ jobs:
 
       - name: Configure Bubblewrap Paths
         run: |
-          mkdir -p ~/.bubblewrap
-          # Only configure jdkPath, let Bubblewrap download Android SDK automatically
-          echo "{\"jdkPath\":\"$JAVA_HOME\"}" > ~/.bubblewrap/config.json
-          cat ~/.bubblewrap/config.json
+          # Use the official updateConfig command to set paths and validate them
+          bubblewrap updateConfig --jdkPath "$JAVA_HOME" --androidSdkPath "$ANDROID_HOME"
 
       - name: Prepare Signing Key
         env:
