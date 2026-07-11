@@ -11,25 +11,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install Bubblewrap CLI
-        run: npm install -g @bubblewrap/cli
-
-      - name: Configure Bubblewrap Paths
-        run: |
-          # Use the official updateConfig command to set paths and validate them
-          bubblewrap updateConfig --jdkPath "$JAVA_HOME" --androidSdkPath "$ANDROID_HOME"
-
       - name: Prepare Signing Key
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
@@ -59,27 +40,18 @@ jobs:
             echo "=========================================================================="
           fi
 
-      - name: Display SHA-256 Fingerprint for assetlinks.json
+      - name: Build TWA and APK via Bubblewrap Docker
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'android_password' }}
         run: |
-          echo "=========================================================================="
-          echo "   SHA-256 FINGERPRINT FOR assetlinks.json"
-          echo "=========================================================================="
-          keytool -list -v -keystore ./android.keystore -alias android -storepass "$KEYSTORE_PASSWORD" | grep -i sha256
-          echo "=========================================================================="
-
-      - name: Update TWA Project
-        run: |
-          # Run update command to generate Android project and checksum non-interactively
-          bubblewrap update --skip-pwa-validation
-
-      - name: Build TWA / APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'android_password' }}
-        run: |
-          # Build TWA non-interactively without piping "yes"
-          bubblewrap build --skip-pwa-validation --storepass "$KEYSTORE_PASSWORD" --keypass "$KEYSTORE_PASSWORD"
+          # Use official Bubblewrap Docker container to bypass all SDK / JDK path prompts
+          docker run --rm \
+            -v ${{ github.workspace }}:/project \
+            -w /project \
+            --env KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+            --entrypoint /bin/bash \
+            ghcr.io/googlechromelabs/bubblewrap:latest \
+            -c "bubblewrap update --skip-pwa-validation && bubblewrap build --skip-pwa-validation --storepass \$KEYSTORE_PASSWORD --keypass \$KEYSTORE_PASSWORD"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
