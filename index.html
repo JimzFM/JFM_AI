@@ -547,8 +547,7 @@
       </div>
 
       <div class="field">
-        <label for="braveApiKey">Brave API Key (Pencarian Web)</label>
-        <input id="braveApiKey" type="password" placeholder="BSA..." autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="field-hint" style="margin-top:0; color:var(--text-dim);">💡 Pencarian web menggunakan Google Search Grounding bawaan Gemini (menggunakan API Key utama, tidak memerlukan key tambahan).</div>
       </div>
 
       <div class="field">
@@ -811,7 +810,6 @@
   let pendingImage = null;     // Feature #4: { base64, mimeType, name }
   let pendingDocumentText = null;
   let pendingDocumentMetadata = null;
-  let braveApiKey  = localStorage.getItem('jimzai_brave_api_key') || envConfig['BRAVE_API_KEY'] || '';
 
   function currentPricing(){
     const activeModel = (rotConfig.enabled && rotConfig.model) ? rotConfig.model : config.model;
@@ -858,7 +856,7 @@
 
   // Settings DOM
   const $baseUrl = document.getElementById('baseUrl'), $apiKey = document.getElementById('apiKey'), $modelName = document.getElementById('modelName'), $systemPrompt = document.getElementById('systemPrompt');
-  const $imageEditModel = document.getElementById('imageEditModel'), $braveApiKey = document.getElementById('braveApiKey');
+  const $imageEditModel = document.getElementById('imageEditModel');
   const $priceInputField = document.getElementById('priceInputField'), $priceOutputField = document.getElementById('priceOutputField'), $priceCacheField = document.getElementById('priceCacheField'), $usdRate = document.getElementById('usdRate');
   const $rotToggle = document.getElementById('rotToggle'), $rotModel = document.getElementById('rotModel'), $rotKeys = document.getElementById('rotKeys');
   const $fontSizeRange = document.getElementById('fontSizeRange'), $fontSizeValue = document.getElementById('fontSizeValue');
@@ -1195,7 +1193,6 @@
   $fontSizeValue.textContent = fontSize;
   $baseUrl.value = config.baseUrl; $apiKey.value = config.apiKey; $modelName.value = config.model; $systemPrompt.value = config.systemPrompt; $usdRate.value = config.usdRate || USD_RATE_DEFAULT;
   $imageEditModel.value = config.imageEditModel || '';
-  $braveApiKey.value = braveApiKey || '';
   $rotToggle.checked = rotConfig.enabled; $rotModel.value = rotConfig.model; $rotKeys.value = (rotConfig.keys || []).join('\n');
   const p = currentPricing();
   $priceInputField.value = p.input||''; $priceOutputField.value = p.output||''; $priceCacheField.value = p.cache||'';
@@ -1217,8 +1214,6 @@
     config.apiKey = $apiKey.value.trim(); config.model = $modelName.value.trim();
     config.systemPrompt = $systemPrompt.value; config.usdRate = parseFloat($usdRate.value) || USD_RATE_DEFAULT;
     config.imageEditModel = $imageEditModel.value.trim();
-    braveApiKey = $braveApiKey.value.trim();
-    localStorage.setItem('jimzai_brave_api_key', braveApiKey);
     // uiTheme is updated live by click handler
     // Feature #5: save font size
     fontSize = parseInt($fontSizeRange.value) || 15;
@@ -1672,72 +1667,6 @@
     503: 'Layanan tidak tersedia — coba lagi nanti (503)',
   };
 
-  // ---------- Brave Search & Tools Definition ----------
-  const searchCache = new Map();
-  const CACHE_TTL = 5 * 60 * 1000;
-
-  async function searchNews(query) {
-    if (!braveApiKey) throw new Error('Brave API Key belum diatur di Settings.');
-    const url = `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(query)}`;
-    const resp = await fetch(url, {
-      headers: { 'X-Subscription-Token': braveApiKey }
-    });
-    if (!resp.ok) throw new Error(`Brave News Search error: ${resp.status}`);
-    return await resp.json();
-  }
-
-  async function searchWeb(query) {
-    if (!braveApiKey) throw new Error('Brave API Key belum diatur di Settings.');
-    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`;
-    const resp = await fetch(url, {
-      headers: { 'X-Subscription-Token': braveApiKey }
-    });
-    if (!resp.ok) throw new Error(`Brave Web Search error: ${resp.status}`);
-    return await resp.json();
-  }
-
-  async function cachedSearch(query, type) {
-    const cacheKey = `${type}:${query.toLowerCase().trim()}`;
-    const now = Date.now();
-    if (searchCache.has(cacheKey)) {
-      const entry = searchCache.get(cacheKey);
-      if (now - entry.timestamp < CACHE_TTL) {
-        return entry.data;
-      }
-    }
-    let data;
-    if (type === 'news') {
-      data = await searchNews(query);
-    } else {
-      data = await searchWeb(query);
-    }
-    searchCache.set(cacheKey, { data, timestamp: now });
-    return data;
-  }
-
-  const webSearchTool = {
-    type: 'function',
-    function: {
-      name: 'web_search',
-      description: 'Cari informasi terbaru dari web atau berita terkini menggunakan Brave Search.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Kata kunci pencarian'
-          },
-          type: {
-            type: 'string',
-            enum: ['news', 'web'],
-            description: 'Tipe pencarian: news untuk berita terkini, web untuk pencarian umum.'
-          }
-        },
-        required: ['query', 'type']
-      }
-    }
-  };
-
   // ---------- Stream ----------
   async function streamAssistantReply(session){
     setStreamingUI(true);
@@ -1767,36 +1696,115 @@
         }
 
         streamController = new AbortController();
-        const connectTimeout = setTimeout(() => streamController.abort('timeout'), 30000);
+        const connectTimeout = setTimeout(() => streamController.abort('timeout'), 45000);
 
         try {
-          const body = { model: currModel, messages: apiMsgs, stream: true };
-          if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
-          if(modelParams.thinking) body.thinking = true;
+          const isGeminiGrounding = currModel.includes('gemini-3.1-flash-lite') || currModel.includes('gemini-2.5-flash-lite');
           
-          if (braveApiKey) {
-            body.tools = [webSearchTool];
+          let fetchUrl, headers, body;
+          
+          if (isGeminiGrounding) {
+            const base = config.baseUrl ? config.baseUrl.replace(/\/chat\/completions$/, '') : 'https://generativelanguage.googleapis.com/v1beta';
+            fetchUrl = `${base}/models/${currModel}:streamGenerateContent?key=${currKey}&alt=sse`;
+            
+            headers = { 'Content-Type': 'application/json' };
+            
+            const contents = [];
+            let nativeSystemInstruction = null;
+            
+            apiMsgs.forEach(m => {
+              if (m.role === 'system') {
+                nativeSystemInstruction = { parts: [{ text: m.content }] };
+              } else {
+                let parts = [];
+                if (Array.isArray(m.content)) {
+                  m.content.forEach(p => {
+                    if (p.type === 'text') {
+                      parts.push({ text: p.text });
+                    } else if (p.type === 'image_url') {
+                      const match = p.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
+                      if (match) {
+                        parts.push({
+                          inlineData: {
+                            mimeType: match[1],
+                            data: match[2]
+                          }
+                        });
+                      }
+                    }
+                  });
+                } else {
+                  parts.push({ text: m.content });
+                }
+                const role = m.role === 'assistant' ? 'model' : 'user';
+                contents.push({ role, parts });
+              }
+            });
+            
+            body = {
+              contents: contents,
+              tools: [{ google_search: {} }]
+            };
+            
+            if (nativeSystemInstruction) {
+              body.systemInstruction = nativeSystemInstruction;
+            }
+          } else {
+            fetchUrl = config.baseUrl + '/chat/completions';
+            headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey };
+            body = {
+              model: currModel,
+              messages: apiMsgs,
+              stream: true
+            };
+            if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
+            if(modelParams.thinking) body.thinking = true;
           }
 
-          const resp = await fetch(config.baseUrl + '/chat/completions', {
+          const resp = await fetch(fetchUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currKey },
+            headers: headers,
             body: JSON.stringify(body),
             signal: streamController.signal
           });
           clearTimeout(connectTimeout);
 
           if(!resp.ok){
+            let errText = '';
+            try {
+              const errJson = await resp.json();
+              errText = errJson?.error?.message || errJson?.error || '';
+            } catch(e) {
+              errText = await resp.text();
+            }
+            
+            // Check for billing/quota related errors (Requirement 3)
+            const isBillingError = errText.toLowerCase().includes('billing') || 
+                                   errText.toLowerCase().includes('quota') || 
+                                   errText.toLowerCase().includes('payg') ||
+                                   errText.toLowerCase().includes('credit') ||
+                                   resp.status === 402;
+                                   
+            if (isBillingError && currModel.includes('gemini-3.1-flash-lite')) {
+              console.log('Billing/quota error on gemini-3.1-flash-lite. Retrying with gemini-2.5-flash-lite...');
+              currModel = 'gemini-2.5-flash-lite';
+              config.model = 'gemini-2.5-flash-lite';
+              localStorage.setItem(K_CFG, JSON.stringify(config));
+              renderModelLabel();
+              
+              streamController.abort('retry');
+              continue;
+            }
+
             if(resp.status === 429 && rotKeyCount > 0 && rotationsUsed < rotKeyCount - 1){
               rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
               localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
               rotationsUsed++; continue;
             }
-            throw new Error(HTTP_ERRORS[resp.status] || `HTTP ${resp.status}`);
+            throw new Error(errText || HTTP_ERRORS[resp.status] || `HTTP ${resp.status}`);
           }
 
           const reader = resp.body.getReader(); const decoder = new TextDecoder('utf-8'); let buffer = '';
-          let toolCalls = [];
 
           while(true){
             const {done, value} = await reader.read(); if(done) break;
@@ -1807,23 +1815,36 @@
               const payload = trimmed.slice(5).trim(); if(payload === '[DONE]') continue;
               try{
                 const json = JSON.parse(payload);
-                const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
-                const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
+                
+                let delta = '';
+                let reasoningDelta = '';
+                
+                if (isGeminiGrounding) {
+                  const candidate = json?.candidates?.[0];
+                  delta = candidate?.content?.parts?.[0]?.text || '';
+                  reasoningDelta = candidate?.content?.parts?.[0]?.thought || '';
+                  
+                  const metadata = candidate?.groundingMetadata;
+                  if (metadata) {
+                    const chunks = metadata.groundingChunks || [];
+                    chunks.forEach(chunk => {
+                      if (chunk.web && chunk.web.uri) {
+                        const url = chunk.web.uri;
+                        const title = chunk.web.title || url;
+                        if (!currentSources.some(s => s.url === url)) {
+                          currentSources.push({ title, url });
+                        }
+                      }
+                    });
+                  }
+                } else {
+                  delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
+                  reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
+                  if(json?.usage) usageData = json.usage;
+                }
+
                 if(reasoningDelta) reasoningText += reasoningDelta;
                 if(delta) fullText += delta;
-                
-                const tcList = json?.choices?.[0]?.delta?.tool_calls || json?.choices?.[0]?.message?.tool_calls;
-                if (tcList) {
-                  tcList.forEach(tc => {
-                    const idx = tc.index ?? 0;
-                    if (!toolCalls[idx]) {
-                      toolCalls[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
-                    }
-                    if (tc.id) toolCalls[idx].id = tc.id;
-                    if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
-                    if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
-                  });
-                }
 
                 if(delta || reasoningDelta){
                   let bHtml = '';
@@ -1832,71 +1853,17 @@
                   bubble.innerHTML = bHtml;
                   requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
                 }
-                if(json?.usage) usageData = json.usage;
               }catch(e){}
-            }
-          }
-
-          if (toolCalls.length > 0) {
-            const toolCall = toolCalls[0];
-            if (toolCall.function.name === 'web_search') {
-              let args = {};
-              try {
-                args = JSON.parse(toolCall.function.arguments);
-              } catch(e) {}
-              
-              const query = args.query;
-              const type = args.type || 'web';
-              
-              bubble.innerHTML = `<span class="extract-loading">Mencari "${escapeHtml(query)}" via Brave Search...</span>`;
-              
-              let searchResultText = '';
-              let sources = [];
-              
-              try {
-                const data = await cachedSearch(query, type);
-                if (type === 'news') {
-                  const results = data.results || [];
-                  searchResultText = results.map(r => `Title: ${r.title}\nUrl: ${r.url}\nDescription: ${r.description}\nAge: ${r.age || ''}\n---`).join('\n');
-                  sources = results.map(r => ({ title: r.title, url: r.url, date: r.age || '' }));
-                } else {
-                  const results = data.web?.results || [];
-                  searchResultText = results.map(r => `Title: ${r.title}\nUrl: ${r.url}\nDescription: ${r.description}\nAge: ${r.page_age || ''}\n---`).join('\n');
-                  sources = results.map(r => ({ title: r.title, url: r.url, date: r.page_age || '' }));
-                }
-              } catch(err) {
-                searchResultText = `Error during search: ${err.message}`;
-              }
-              
-              currentSources = sources;
-              
-              apiMsgs.push({
-                role: 'assistant',
-                content: null,
-                tool_calls: toolCalls.map(tc => ({
-                  id: tc.id,
-                  type: 'function',
-                  function: { name: tc.function.name, arguments: tc.function.arguments }
-                }))
-              });
-              
-              apiMsgs.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                name: 'web_search',
-                content: searchResultText
-              });
-              
-              toolCalls = [];
-              continue;
             }
           }
 
           success = true;
         } catch(err) {
-          clearTimeout(connectTimeout);
-          if(err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError')){
-            if(streamController.signal.reason === 'user_stop'){
+          if (err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError')) {
+            if (streamController.signal.reason === 'retry') {
+              continue;
+            }
+            if (streamController.signal.reason === 'user_stop') {
               stoppedByUser = true;
               success = true;
             } else {
@@ -1927,7 +1894,7 @@
             <div class="sources-list">
               <div class="sources-header">Referensi:</div>
               <ol>
-                ${currentSources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a> ${s.date ? `(${escapeHtml(s.date)})` : ''}</li>`).join('')}
+                ${currentSources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a></li>`).join('')}
               </ol>
             </div>
           `;
