@@ -1755,7 +1755,21 @@
   // ---------- Web Fetch Tool ----------
   const URL_REGEX = /https?:\/\/[^\s"'<>)(,]+/gi;
   const WEB_FETCH_MAX_CHARS = 40000; // ~10k tokens
-  const ALLORIGINS = 'https://api.allorigins.win/get?url=';
+
+  // Multiple CORS proxy fallbacks (tried in order)
+  const CORS_PROXIES = [
+    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+  ];
+
+  function makeTimeoutSignal(ms) {
+    // Manual implementation — AbortSignal.timeout() not available on all Android WebViews
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(new Error(`Timeout ${ms}ms`)), ms);
+    ctrl.signal.addEventListener('abort', () => clearTimeout(tid), { once: true });
+    return ctrl.signal;
+  }
 
   function extractTextFromHtml(html) {
     // Remove script/style blocks
@@ -1769,26 +1783,57 @@
     html = html.replace(/<[^>]+>/g, ' ');
     // Decode common HTML entities
     html = html.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-               .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+               .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+               .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n));
     // Collapse whitespace
     html = html.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
     return html;
   }
 
+  async function fetchWithProxy(proxyFn, url) {
+    const proxyUrl = proxyFn(url);
+    const resp = await fetch(proxyUrl, { signal: makeTimeoutSignal(18000) });
+    if (!resp.ok) throw new Error(`Proxy HTTP ${resp.status}`);
+
+    const contentType = resp.headers.get('content-type') || '';
+
+    // allorigins returns JSON: { contents, status: { http_code } }
+    if (contentType.includes('application/json')) {
+      const data = await resp.json();
+      if (data.status?.http_code >= 400) {
+        throw new Error(`Remote HTTP ${data.status.http_code}`);
+      }
+      return data.contents || data.body || '';
+    }
+    // corsproxy.io & codetabs return raw HTML directly
+    return await resp.text();
+  }
+
   async function fetchWebPage(url) {
-    const proxyUrl = ALLORIGINS + encodeURIComponent(url);
-    const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    if (data.status && data.status.http_code && data.status.http_code >= 400) {
-      throw new Error(`Remote HTTP ${data.status.http_code}`);
+    let lastError = null;
+
+    for (const proxyFn of CORS_PROXIES) {
+      try {
+        const raw = await fetchWithProxy(proxyFn, url);
+        if (!raw || raw.trim().length === 0) {
+          throw new Error('Konten kosong dari proxy');
+        }
+        let text = extractTextFromHtml(raw);
+        if (text.trim().length === 0) {
+          throw new Error('Tidak ada teks yang bisa diekstrak');
+        }
+        if (text.length > WEB_FETCH_MAX_CHARS) {
+          text = text.slice(0, WEB_FETCH_MAX_CHARS) + `\n\n[... halaman dipotong pada ${WEB_FETCH_MAX_CHARS} karakter ...]`;
+        }
+        return text;
+      } catch (e) {
+        console.warn(`[WebFetch] Proxy gagal (${proxyFn(url).split('?')[0]}):`, e.message);
+        lastError = e;
+        // continue ke proxy berikutnya
+      }
     }
-    const html = data.contents || '';
-    let text = extractTextFromHtml(html);
-    if (text.length > WEB_FETCH_MAX_CHARS) {
-      text = text.slice(0, WEB_FETCH_MAX_CHARS) + `\n\n[... halaman dipotong: menampilkan ${WEB_FETCH_MAX_CHARS} dari ${html.length} karakter ...]`;
-    }
-    return text;
+
+    throw new Error(`Semua proxy gagal. Error terakhir: ${lastError?.message || 'unknown'}`);
   }
 
   // ---------- Send ----------
