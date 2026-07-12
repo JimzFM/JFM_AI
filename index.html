@@ -1747,7 +1747,7 @@
             };
             
             if (nativeSystemInstruction) {
-              body.systemInstruction = nativeSystemInstruction;
+              body.system_instruction = nativeSystemInstruction;
             }
           } else {
             fetchUrl = config.baseUrl + '/chat/completions';
@@ -1760,6 +1760,8 @@
             if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
             if(modelParams.thinking) body.thinking = true;
           }
+
+          console.log(`[JFM_AI] Outgoing Request Body for ${currModel}:`, JSON.stringify(body, null, 2));
 
           const resp = await fetch(fetchUrl, {
             method: 'POST',
