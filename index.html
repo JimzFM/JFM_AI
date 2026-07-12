@@ -429,6 +429,29 @@
     animation: pulse 1.5s infinite;
     color: var(--accent-bright) !important;
   }
+
+  /* Web Fetch URL card */
+  .url-fetch-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .url-fetch-card .url-icon { font-size: 14px; flex-shrink: 0; }
+  .url-fetch-card .url-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .url-fetch-card.fetching { border-left-color: var(--accent-dim); animation: pulse 1.5s infinite; }
+  .url-fetch-card.error { border-left-color: var(--danger); color: var(--danger); }
 </style>
 </head>
 <body>
@@ -993,7 +1016,7 @@
     $messages.querySelectorAll('.msg-row').forEach(el => el.remove());
     if(!s || s.messages.length === 0){ $emptyState.style.display = 'flex'; return; }
     $emptyState.style.display = 'none';
-    s.messages.forEach((m, idx) => appendMessageDOM(m.role, m.content, false, idx, m.reasoning, m.sources, m.editedImage, m.fileMetadata));
+    s.messages.forEach((m, idx) => appendMessageDOM(m.role, m.content, false, idx, m.reasoning, m.sources, m.editedImage, m.fileMetadata, m.fetchedUrls));
     postProcessMessages();
     requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
   }
@@ -1013,7 +1036,7 @@
     document.body.removeChild(link);
   }
 
-  function appendMessageDOM(role, content, animate, idx, reasoning, sources, editedImage, fileMetadata){
+  function appendMessageDOM(role, content, animate, idx, reasoning, sources, editedImage, fileMetadata, fetchedUrls){
     $emptyState.style.display = 'none';
     const row = document.createElement('div'); row.className = 'msg-row ' + role; row.dataset.idx = idx ?? '';
     const roleLine = document.createElement('div'); roleLine.className = 'msg-role-line';
@@ -1063,9 +1086,14 @@
     } else {
       // Feature #4: render text + optional image for user messages
       let text = getTextContent(content);
-      // Strip file content block when rendering user message in UI
+      // Strip file content block
       if (fileMetadata) {
         text = text.replace(/--- File contents: [\s\S]*?--- end of file ---\n\n?/, '');
+      }
+      // Strip injected web page content blocks - show only the user's original instruction
+      if (fetchedUrls && fetchedUrls.length > 0) {
+        text = text.replace(/--- Web page: .*?--- end of page ---\n\n/gs, '');
+        text = text.replace(/^---\n\nPertanyaan pengguna: /, '');
       }
       bubble.textContent = text;
       
@@ -1087,6 +1115,21 @@
         fileCard.innerHTML = `📄 <span class="file-name" title="${escapeHtml(fileMetadata.name)}">${escapeHtml(fileMetadata.name)}</span> <span class="file-size">(${formatBytes(fileMetadata.size)})</span>`;
         bubble.appendChild(fileCard);
       }
+
+      // Render URL fetch result cards in user bubble
+      if (fetchedUrls && fetchedUrls.length > 0) {
+        fetchedUrls.forEach(meta => {
+          const card = document.createElement('div');
+          if (meta.success) {
+            card.className = 'url-fetch-card';
+            card.innerHTML = `<span class="url-icon">✅</span><span class="url-label">${escapeHtml(meta.url)} (${meta.chars.toLocaleString()} chars)</span>`;
+          } else {
+            card.className = 'url-fetch-card error';
+            card.innerHTML = `<span class="url-icon">❌</span><span class="url-label">${escapeHtml(meta.url)} — ${escapeHtml(meta.error || 'Gagal')}</span>`;
+          }
+          bubble.appendChild(card);
+        });
+      }
     }
 
     row.appendChild(roleLine); row.appendChild(bubble);
@@ -1096,6 +1139,10 @@
       let textForCopy = getTextContent(content);
       if (role === 'user' && fileMetadata) {
         textForCopy = textForCopy.replace(/--- File contents: [\s\S]*?--- end of file ---\n\n?/, '');
+      }
+      if (role === 'user' && fetchedUrls && fetchedUrls.length > 0) {
+        textForCopy = textForCopy.replace(/--- Web page: [\s\S]*?--- end of page ---\n\n/g, '');
+        textForCopy = textForCopy.replace(/^---\n\nPertanyaan pengguna: /, '');
       }
       const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.textContent = 'Salin';
       copyBtn.addEventListener('click', () => {
@@ -1110,6 +1157,10 @@
           let textToEdit = getTextContent(content);
           if (fileMetadata) {
             textToEdit = textToEdit.replace(/--- File contents: [\s\S]*?--- end of file ---\n\n?/, '');
+          }
+          if (fetchedUrls && fetchedUrls.length > 0) {
+            textToEdit = textToEdit.replace(/--- Web page: [\s\S]*?--- end of page ---\n\n/g, '');
+            textToEdit = textToEdit.replace(/^---\n\nPertanyaan pengguna: /, '');
           }
           $textInput.value = textToEdit;
           $textInput.focus();
@@ -1572,6 +1623,45 @@
     }
   }
 
+  // ---------- Web Fetch Tool ----------
+  const URL_REGEX = /https?:\/\/[^\s"'<>)(,]+/gi;
+  const WEB_FETCH_MAX_CHARS = 40000; // ~10k tokens
+  const ALLORIGINS = 'https://api.allorigins.win/get?url=';
+
+  function extractTextFromHtml(html) {
+    // Remove script/style blocks
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+               .replace(/<style[\s\S]*?<\/style>/gi, '')
+               .replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+    // Replace block-level elements with newlines
+    html = html.replace(/<\/(p|div|li|tr|h[1-6]|blockquote|pre)>/gi, '\n')
+               .replace(/<br\s*\/?>/gi, '\n');
+    // Strip remaining tags
+    html = html.replace(/<[^>]+>/g, ' ');
+    // Decode common HTML entities
+    html = html.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+               .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+    // Collapse whitespace
+    html = html.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    return html;
+  }
+
+  async function fetchWebPage(url) {
+    const proxyUrl = ALLORIGINS + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (data.status && data.status.http_code && data.status.http_code >= 400) {
+      throw new Error(`Remote HTTP ${data.status.http_code}`);
+    }
+    const html = data.contents || '';
+    let text = extractTextFromHtml(html);
+    if (text.length > WEB_FETCH_MAX_CHARS) {
+      text = text.slice(0, WEB_FETCH_MAX_CHARS) + `\n\n[... halaman dipotong: menampilkan ${WEB_FETCH_MAX_CHARS} dari ${html.length} karakter ...]`;
+    }
+    return text;
+  }
+
   // ---------- Send ----------
   async function doSend() {
     const text = $textInput.value.trim();
@@ -1616,7 +1706,74 @@
 
       let msgContent = text;
       let currentFileMetadata = null;
+      let fetchedUrlMeta = null; // { url, success, chars }
 
+      // --- Web Fetch: detect URLs in message and inject page content ---
+      const detectedUrls = !pendingDocumentText && !pendingImage
+        ? [...new Set((text.match(URL_REGEX) || []))]
+        : [];
+
+      if (detectedUrls.length > 0) {
+        // Clear input immediately and show a transient fetch toast
+        $textInput.value = ''; $charCounter.textContent = '0 char'; $textInput.style.height = 'auto';
+        setStreamingUI(true);
+
+        // Render user message bubble with fetch indicator
+        s.messages.push({ role: 'user', content: text, fetchedUrls: [] });
+        if(s.messages.length === 1) s.title = text.slice(0, 40);
+        localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+        renderMessages();
+        renderSidebar();
+
+        // Show fetch-in-progress indicator inside the last user bubble
+        const lastUserBubble = $messages.querySelectorAll('.msg-row.user .bubble');
+        const userBubble = lastUserBubble[lastUserBubble.length - 1];
+        const fetchCards = [];
+        for (const url of detectedUrls.slice(0, 3)) { // max 3 URLs
+          const card = document.createElement('div');
+          card.className = 'url-fetch-card fetching';
+          card.innerHTML = `<span class="url-icon">🌐</span><span class="url-label">Mengambil: ${escapeHtml(url)}</span>`;
+          userBubble && userBubble.appendChild(card);
+          fetchCards.push({ url, card });
+        }
+
+        // Fetch all URLs concurrently
+        const fetchResults = await Promise.allSettled(
+          fetchCards.map(({ url }) => fetchWebPage(url))
+        );
+
+        let injectedContent = '';
+        const fetchedMeta = [];
+        fetchResults.forEach(({ status, value, reason }, i) => {
+          const { url, card } = fetchCards[i];
+          if (status === 'fulfilled' && value.trim()) {
+            const chars = value.length;
+            injectedContent += `--- Web page: ${url} ---\n${value}\n--- end of page ---\n\n`;
+            card.className = 'url-fetch-card';
+            card.innerHTML = `<span class="url-icon">✅</span><span class="url-label">${escapeHtml(url)} (${chars.toLocaleString()} chars)</span>`;
+            fetchedMeta.push({ url, chars, success: true });
+          } else {
+            const errMsg = reason?.message || 'Gagal';
+            card.className = 'url-fetch-card error';
+            card.innerHTML = `<span class="url-icon">❌</span><span class="url-label">${escapeHtml(url)} — ${escapeHtml(errMsg)}</span>`;
+            fetchedMeta.push({ url, success: false, error: errMsg });
+          }
+        });
+
+        // Patch the last user message to inject fetched content
+        const lastMsg = s.messages[s.messages.length - 1];
+        if (injectedContent) {
+          lastMsg.content = `${injectedContent}---\n\nPertanyaan pengguna: ${text}`;
+        }
+        lastMsg.fetchedUrls = fetchedMeta;
+        localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+
+        setStreamingUI(false);
+        await streamAssistantReply(s);
+        return;
+      }
+
+      // --- Normal message path (no URL / has image or file) ---
       if (pendingDocumentText) {
         msgContent = `--- File contents: ${pendingDocumentMetadata.name} ---\n${pendingDocumentText}\n--- end of file ---\n\n${text}`;
         currentFileMetadata = pendingDocumentMetadata;
