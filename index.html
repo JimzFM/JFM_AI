@@ -22,6 +22,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"
         integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
         crossorigin="anonymous"></script>
+<!-- PDF, DOCX, XLSX extraction libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0d0f0e; --panel:#141715; --panel-2:#191d1a; --line:#262b27;
@@ -360,6 +364,71 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   #toast.toast-error { border-color: var(--danger); color: var(--danger); }
   #toast.toast-success { border-color: var(--accent-dim); color: var(--accent-bright); }
+
+  /* ---- Sources, Documents, and Loading animations ---- */
+  .sources-list {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .sources-header {
+    font-family: var(--mono);
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .sources-list ol {
+    margin: 0;
+    padding-left: 20px;
+  }
+  .sources-list li {
+    margin-bottom: 4px;
+  }
+  .sources-list a {
+    color: var(--accent-bright);
+    text-decoration: none;
+  }
+  .sources-list a:hover {
+    text-decoration: underline;
+  }
+
+  .msg-file-attachment {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-top: 8px;
+    color: var(--text);
+    font-family: var(--sans);
+  }
+  .msg-file-attachment .file-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .msg-file-attachment .file-size {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+  .extract-loading {
+    animation: pulse 1.5s infinite;
+    color: var(--accent-bright) !important;
+  }
 </style>
 </head>
 <body>
@@ -402,8 +471,8 @@
       </div>
       <div class="input-row">
         <!-- Feature #4: Attach button -->
-        <button class="iconbtn" id="attachBtn" aria-label="Lampirkan gambar" title="Lampirkan gambar (vision model)">📎</button>
-        <input type="file" id="imageInput" accept="image/*" style="display:none">
+        <button class="iconbtn" id="attachBtn" aria-label="Lampirkan berkas" title="Lampirkan gambar atau dokumen (PDF, DOCX, XLSX, CSV, TXT)">📎</button>
+        <input type="file" id="imageInput" accept="image/*,.pdf,.docx,.xlsx,.csv,.txt" style="display:none">
         <textarea id="textInput" placeholder="Tap the send button to send a message" rows="1"></textarea>
         <!-- Feature #1: Send/Stop button -->
         <button id="sendBtn" aria-label="Kirim">↑</button>
@@ -470,6 +539,16 @@
       <div class="field">
         <label for="modelName">Model Utama</label>
         <input id="modelName" type="text" placeholder="qwen3.7-plus" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <label for="imageEditModel">Model Edit Gambar (IMAGE_EDIT_MODEL)</label>
+        <input id="imageEditModel" type="text" placeholder="gemini-3.1-flash-image" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <label for="braveApiKey">Brave API Key (Pencarian Web)</label>
+        <input id="braveApiKey" type="password" placeholder="BSA..." autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
 
       <div class="field">
@@ -560,7 +639,7 @@
 <div id="toast" role="alert" aria-live="polite"></div>
 
 <script>
-(function(){
+(async function(){
   'use strict';
 
   // ---------- Constants ----------
@@ -699,8 +778,27 @@
   }
   applyFontSize(fontSize);
 
+  // ---------- Load env variables ----------
+  let envConfig = {};
+  try {
+    const envResp = await fetch('.env');
+    if (envResp.ok) {
+      const envText = await envResp.text();
+      envText.split('\n').forEach(line => {
+        const parts = line.split('=');
+        if (parts.length >= 2) {
+          const key = parts[0].trim();
+          const val = parts.slice(1).join('=').trim();
+          if (key) envConfig[key] = val;
+        }
+      });
+    }
+  } catch(e) {
+    console.log('No local .env file loaded:', e);
+  }
+
   // ---------- State ----------
-  let config       = safeJsonParse(localStorage.getItem(K_CFG), {baseUrl:'', apiKey:'', model:'', systemPrompt:'', usdRate: USD_RATE_DEFAULT});
+  let config       = safeJsonParse(localStorage.getItem(K_CFG), {baseUrl:'', apiKey:'', model:'', systemPrompt:'', usdRate: USD_RATE_DEFAULT, imageEditModel:''});
   let rotConfig    = safeJsonParse(localStorage.getItem(K_ROT), {enabled:false, model:'', keys:[], currentIndex:0});
   let uiTheme      = localStorage.getItem(K_THEME) || 'dark';
   let sessions     = safeJsonParse(localStorage.getItem(K_SESSIONS), []);
@@ -711,6 +809,9 @@
   let editingIndex = null;
   let streamController = null; // Feature #1: for abort
   let pendingImage = null;     // Feature #4: { base64, mimeType, name }
+  let pendingDocumentText = null;
+  let pendingDocumentMetadata = null;
+  let braveApiKey  = localStorage.getItem('jimzai_brave_api_key') || envConfig['BRAVE_API_KEY'] || '';
 
   function currentPricing(){
     const activeModel = (rotConfig.enabled && rotConfig.model) ? rotConfig.model : config.model;
@@ -757,6 +858,7 @@
 
   // Settings DOM
   const $baseUrl = document.getElementById('baseUrl'), $apiKey = document.getElementById('apiKey'), $modelName = document.getElementById('modelName'), $systemPrompt = document.getElementById('systemPrompt');
+  const $imageEditModel = document.getElementById('imageEditModel'), $braveApiKey = document.getElementById('braveApiKey');
   const $priceInputField = document.getElementById('priceInputField'), $priceOutputField = document.getElementById('priceOutputField'), $priceCacheField = document.getElementById('priceCacheField'), $usdRate = document.getElementById('usdRate');
   const $rotToggle = document.getElementById('rotToggle'), $rotModel = document.getElementById('rotModel'), $rotKeys = document.getElementById('rotKeys');
   const $fontSizeRange = document.getElementById('fontSizeRange'), $fontSizeValue = document.getElementById('fontSizeValue');
@@ -887,12 +989,13 @@
   }
 
   // ---------- Messages ----------
+  // ---------- Messages ----------
   function renderMessages(){
     const s = getActiveSession();
     $messages.querySelectorAll('.msg-row').forEach(el => el.remove());
     if(!s || s.messages.length === 0){ $emptyState.style.display = 'flex'; return; }
     $emptyState.style.display = 'none';
-    s.messages.forEach((m, idx) => appendMessageDOM(m.role, m.content, false, idx, m.reasoning));
+    s.messages.forEach((m, idx) => appendMessageDOM(m.role, m.content, false, idx, m.reasoning, m.sources, m.editedImage, m.fileMetadata));
     postProcessMessages();
     requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
   }
@@ -903,7 +1006,16 @@
     return content || '';
   }
 
-  function appendMessageDOM(role, content, animate, idx, reasoning){
+  function saveImageToGallery(base64Data, mimeType, fileName) {
+    const link = document.createElement('a');
+    link.href = `data:${mimeType};base64,${base64Data}`;
+    link.download = fileName || 'edited_image.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function appendMessageDOM(role, content, animate, idx, reasoning, sources, editedImage, fileMetadata){
     $emptyState.style.display = 'none';
     const row = document.createElement('div'); row.className = 'msg-row ' + role; row.dataset.idx = idx ?? '';
     const roleLine = document.createElement('div'); roleLine.className = 'msg-role-line';
@@ -918,10 +1030,47 @@
       const text = getTextContent(content);
       html += typeof marked !== 'undefined' ? marked.parse(text) : escapeHtml(text);
       bubble.innerHTML = html;
+
+      // Render references (B.6)
+      if (sources && sources.length > 0) {
+        const sourcesHtml = `
+          <div class="sources-list">
+            <div class="sources-header">Referensi:</div>
+            <ol>
+              ${sources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a> ${s.date ? `(${escapeHtml(s.date)})` : ''}</li>`).join('')}
+            </ol>
+          </div>
+        `;
+        bubble.innerHTML += sourcesHtml;
+      }
+
+      // Render edited image (C.9, C.11)
+      if (editedImage) {
+        const img = document.createElement('img');
+        img.src = editedImage.dataUrl || `data:${editedImage.mimeType};base64,${editedImage.base64}`;
+        img.className = 'msg-image';
+        img.alt = 'Hasil edit gambar';
+        bubble.appendChild(img);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'msg-action-btn';
+        saveBtn.style.marginTop = '8px';
+        saveBtn.style.display = 'block';
+        saveBtn.textContent = '💾 Simpan ke Galeri';
+        saveBtn.addEventListener('click', () => {
+          saveImageToGallery(editedImage.base64, editedImage.mimeType, `edited_${idx || Date.now()}.png`);
+        });
+        bubble.appendChild(saveBtn);
+      }
     } else {
       // Feature #4: render text + optional image for user messages
-      const text = getTextContent(content);
+      let text = getTextContent(content);
+      // Strip file content block when rendering user message in UI
+      if (fileMetadata) {
+        text = text.replace(/--- File contents: [\s\S]*?--- end of file ---\n\n?/, '');
+      }
       bubble.textContent = text;
+      
       if(Array.isArray(content)){
         const imgPart = content.find(p => p.type === 'image_url');
         if(imgPart){
@@ -932,13 +1081,24 @@
           bubble.appendChild(img);
         }
       }
+
+      // Render document card in user bubble (D.18)
+      if (fileMetadata) {
+        const fileCard = document.createElement('div');
+        fileCard.className = 'msg-file-attachment';
+        fileCard.innerHTML = `📄 <span class="file-name" title="${escapeHtml(fileMetadata.name)}">${escapeHtml(fileMetadata.name)}</span> <span class="file-size">(${formatBytes(fileMetadata.size)})</span>`;
+        bubble.appendChild(fileCard);
+      }
     }
 
     row.appendChild(roleLine); row.appendChild(bubble);
 
     if(idx !== undefined && idx !== null){
       const actions = document.createElement('div'); actions.className = 'msg-actions';
-      const textForCopy = getTextContent(content);
+      let textForCopy = getTextContent(content);
+      if (role === 'user' && fileMetadata) {
+        textForCopy = textForCopy.replace(/--- File contents: [\s\S]*?--- end of file ---\n\n?/, '');
+      }
       const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.textContent = 'Salin';
       copyBtn.addEventListener('click', () => {
         copyToClipboard(textForCopy, () => { copyBtn.textContent = 'Tersalin!'; setTimeout(() => copyBtn.textContent = 'Salin', 1500); });
@@ -949,7 +1109,11 @@
         const editBtn = document.createElement('button'); editBtn.className = 'msg-action-btn'; editBtn.textContent = 'Edit';
         editBtn.addEventListener('click', () => {
           editingIndex = idx;
-          $textInput.value = getTextContent(content);
+          let textToEdit = getTextContent(content);
+          if (fileMetadata) {
+            textToEdit = textToEdit.replace(/--- File contents: [\s\S]*?--- end of file ---\n\n?/, '');
+          }
+          $textInput.value = textToEdit;
           $textInput.focus();
           $textInput.style.height = 'auto';
           $textInput.style.height = Math.min($textInput.scrollHeight, 120) + 'px';
@@ -1030,6 +1194,8 @@
   $fontSizeRange.value = fontSize;
   $fontSizeValue.textContent = fontSize;
   $baseUrl.value = config.baseUrl; $apiKey.value = config.apiKey; $modelName.value = config.model; $systemPrompt.value = config.systemPrompt; $usdRate.value = config.usdRate || USD_RATE_DEFAULT;
+  $imageEditModel.value = config.imageEditModel || '';
+  $braveApiKey.value = braveApiKey || '';
   $rotToggle.checked = rotConfig.enabled; $rotModel.value = rotConfig.model; $rotKeys.value = (rotConfig.keys || []).join('\n');
   const p = currentPricing();
   $priceInputField.value = p.input||''; $priceOutputField.value = p.output||''; $priceCacheField.value = p.cache||'';
@@ -1050,6 +1216,9 @@
     config.baseUrl = $baseUrl.value.trim().replace(/\/$/, '');
     config.apiKey = $apiKey.value.trim(); config.model = $modelName.value.trim();
     config.systemPrompt = $systemPrompt.value; config.usdRate = parseFloat($usdRate.value) || USD_RATE_DEFAULT;
+    config.imageEditModel = $imageEditModel.value.trim();
+    braveApiKey = $braveApiKey.value.trim();
+    localStorage.setItem('jimzai_brave_api_key', braveApiKey);
     // uiTheme is updated live by click handler
     // Feature #5: save font size
     fontSize = parseInt($fontSizeRange.value) || 15;
@@ -1097,33 +1266,321 @@
     });
   }
 
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  async function extractTextFromPDF(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async function() {
+        try {
+          const typedarray = new Uint8Array(this.result);
+          if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+            const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+            let text = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              text += content.items.map(item => item.str).join(' ') + '\n';
+            }
+            resolve(text);
+          } else {
+            reject(new Error('Library PDF.js belum termuat.'));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function extractTextFromDOCX(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        if (typeof mammoth !== 'undefined') {
+          const arrayBuffer = e.target.result;
+          mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+            .then(result => resolve(result.value))
+            .catch(reject);
+        } else {
+          reject(new Error('Library Mammoth.js belum termuat.'));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function extractTextFromXLSX(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          if (typeof XLSX !== 'undefined') {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            let text = '';
+            workbook.SheetNames.forEach(sheetName => {
+              const worksheet = workbook.Sheets[sheetName];
+              const csv = XLSX.utils.sheet_to_csv(worksheet);
+              text += `--- Sheet: ${sheetName} ---\n${csv}\n`;
+            });
+            resolve(text);
+          } else {
+            reject(new Error('Library SheetJS (XLSX) belum termuat.'));
+          }
+        } catch(err) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function extractTextFromTXT(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        resolve(e.target.result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+
+  async function extractTextFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (file.type === 'application/pdf' || ext === 'pdf') {
+      return await extractTextFromPDF(file);
+    } else if (ext === 'docx') {
+      return await extractTextFromDOCX(file);
+    } else if (ext === 'xlsx') {
+      return await extractTextFromXLSX(file);
+    } else if (file.type === 'text/csv' || ext === 'csv' || file.type === 'text/plain' || ext === 'txt') {
+      return await extractTextFromTXT(file);
+    } else {
+      throw new Error('Format file tidak didukung.');
+    }
+  }
+
   document.getElementById('attachBtn').addEventListener('click', () => {
     document.getElementById('imageInput').click();
   });
 
   document.getElementById('imageInput').addEventListener('change', async e => {
     const file = e.target.files[0]; if(!file) return;
-    try {
-      pendingImage = await resizeImageToBase64(file);
-      document.getElementById('attachThumb').src = pendingImage.dataUrl;
-      document.getElementById('attachLabel').textContent = file.name;
-      document.getElementById('attachPreview').style.display = 'flex';
-    } catch(err) {
-      showToast('Gagal memuat gambar', 'error');
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isImg = file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+    
+    pendingImage = null;
+    pendingDocumentText = null;
+    pendingDocumentMetadata = null;
+    document.getElementById('attachLabel').classList.remove('extract-loading');
+    
+    if (isImg) {
+      try {
+        pendingImage = await resizeImageToBase64(file);
+        document.getElementById('attachThumb').src = pendingImage.dataUrl;
+        document.getElementById('attachLabel').textContent = file.name;
+        document.getElementById('attachPreview').style.display = 'flex';
+      } catch(err) {
+        showToast('Gagal memuat gambar', 'error');
+      }
+    } else {
+      try {
+        const docSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="%238a9188" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+        document.getElementById('attachThumb').src = docSvg;
+        document.getElementById('attachLabel').textContent = `Mengekstrak ${file.name}...`;
+        document.getElementById('attachLabel').classList.add('extract-loading');
+        document.getElementById('attachPreview').style.display = 'flex';
+        $sendBtn.disabled = true;
+        
+        const extractedText = await extractTextFromFile(file);
+        if (!extractedText || !extractedText.trim()) {
+          throw new Error('File tidak memiliki teks yang dapat diekstrak.');
+        }
+        
+        const MAX_EXTRACT_CHARS = 120000;
+        let finalExtractedText = extractedText;
+        if (extractedText.length > MAX_EXTRACT_CHARS) {
+          const truncatedText = extractedText.substring(0, MAX_EXTRACT_CHARS);
+          const totalTokensEstimate = Math.round(extractedText.length / 4);
+          const shownTokensEstimate = Math.round(truncatedText.length / 4);
+          finalExtractedText = truncatedText + `\n\n[file truncated, showing ${shownTokensEstimate} of total ${totalTokensEstimate} tokens]`;
+        }
+        
+        pendingDocumentText = finalExtractedText;
+        pendingDocumentMetadata = { name: file.name, size: file.size };
+        
+        document.getElementById('attachLabel').textContent = `${file.name} (${formatBytes(file.size)})`;
+      } catch(err) {
+        showToast(`Gagal mengekstrak berkas: ${err.message}`, 'error', 5000);
+        document.getElementById('attachPreview').style.display = 'none';
+        document.getElementById('attachThumb').src = '';
+      } finally {
+        document.getElementById('attachLabel').classList.remove('extract-loading');
+        $sendBtn.disabled = false;
+      }
     }
     e.target.value = '';
   });
 
   document.getElementById('removeAttach').addEventListener('click', () => {
     pendingImage = null;
+    pendingDocumentText = null;
+    pendingDocumentMetadata = null;
     document.getElementById('attachPreview').style.display = 'none';
     document.getElementById('attachThumb').src = '';
+    document.getElementById('attachLabel').textContent = '';
+    document.getElementById('attachLabel').classList.remove('extract-loading');
+    $sendBtn.disabled = false;
   });
+
+  // ---------- Send ----------
+  function isEditingInstruction(text) {
+    if (!text) return false;
+    const t = text.toLowerCase();
+    const editKeywords = [
+      'edit', 'ubah', 'ganti', 'make', 'buat', 'tambahkan', 'remove', 'hapus',
+      'filter', 'warna', 'color', 'crop', 'resize', 'potong', 'efek', 'effect',
+      'black and white', 'hitam putih', 'grayscale', 'mono', 'brightness', 'contrast',
+      'draw', 'gambar', 'lukis', 'putar', 'rotate', 'flip', 'cermin', 'blur', 'buram'
+    ];
+    return editKeywords.some(kw => t.includes(kw));
+  }
+
+  async function editImage(image, instruction, session) {
+    const imageEditModel = config.imageEditModel;
+    if (!imageEditModel) {
+      showToast('Fitur edit foto memerlukan IMAGE_EDIT_MODEL yang terkonfigurasi di Settings!', 'error', 5000);
+      return;
+    }
+    
+    setStreamingUI(true);
+    const bubble = appendMessageDOM('assistant', '', true);
+    bubble.classList.add('streaming');
+    bubble.innerHTML = '<span class="extract-loading">Mengedit gambar menggunakan IMAGE_EDIT_MODEL...</span>';
+    
+    try {
+      const body = {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: instruction },
+              {
+                inlineData: {
+                  mimeType: image.mimeType,
+                  data: image.base64
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"]
+        }
+      };
+      
+      let editUrl;
+      if (config.baseUrl && config.baseUrl.includes('generativelanguage.googleapis.com')) {
+        const base = config.baseUrl.replace(/\/chat\/completions$/, '');
+        editUrl = `${base}/models/${imageEditModel}:generateContent?key=${config.apiKey}`;
+      } else {
+        const base = config.baseUrl ? config.baseUrl.replace(/\/chat\/completions$/, '') : 'https://generativelanguage.googleapis.com/v1beta';
+        editUrl = `${base}/models/${imageEditModel}:generateContent?key=${config.apiKey}`;
+      }
+      
+      const headers = { 'Content-Type': 'application/json' };
+      if (config.baseUrl && !config.baseUrl.includes('generativelanguage.googleapis.com')) {
+        headers['Authorization'] = 'Bearer ' + config.apiKey;
+      }
+      
+      const resp = await fetch(editUrl, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(body)
+      });
+      
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} - ${resp.statusText}`);
+      }
+      
+      const result = await resp.json();
+      const part = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      if (!part || !part.inlineData) {
+        const textPart = result?.candidates?.[0]?.content?.parts?.find(p => p.text);
+        if (textPart && textPart.text) {
+          throw new Error(textPart.text);
+        }
+        throw new Error('Respons model tidak mengandung data gambar.');
+      }
+      
+      const newMimeType = part.inlineData.mimeType;
+      const newBase64 = part.inlineData.data;
+      const dataUrl = `data:${newMimeType};base64,${newBase64}`;
+      
+      session.imageHistory = session.imageHistory || [];
+      const newImageObj = { base64: newBase64, mimeType: newMimeType, dataUrl };
+      session.imageHistory.push(newImageObj);
+      
+      session.messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: instruction },
+          { type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.base64}` } }
+        ]
+      });
+      
+      session.messages.push({
+        role: 'assistant',
+        content: 'Berikut hasil edit gambar Anda:',
+        editedImage: newImageObj
+      });
+      
+      localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
+      
+      bubble.innerHTML = 'Berikut hasil edit gambar Anda:';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.className = 'msg-image';
+      img.alt = 'Hasil edit gambar';
+      bubble.appendChild(img);
+      
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'msg-action-btn';
+      saveBtn.style.marginTop = '8px';
+      saveBtn.style.display = 'block';
+      saveBtn.textContent = '💾 Simpan ke Galeri';
+      saveBtn.addEventListener('click', () => {
+        saveImageToGallery(newBase64, newMimeType, `edited_${Date.now()}.png`);
+      });
+      bubble.appendChild(saveBtn);
+      
+      renderSidebar();
+    } catch(err) {
+      bubble.textContent = `Gagal mengedit gambar: ${err.message}`;
+      bubble.closest('.msg-row').classList.replace('assistant', 'error');
+    } finally {
+      setStreamingUI(false);
+      bubble.classList.remove('streaming');
+    }
+  }
 
   // ---------- Send ----------
   async function doSend() {
     const text = $textInput.value.trim();
-    if((!text && !pendingImage) || isStreaming) return;
+    if((!text && !pendingImage && !pendingDocumentText) || isStreaming) return;
     if(!config.baseUrl){ showToast('Mohon atur Base URL di tab Settings terlebih dahulu!', 'error', 4000); return; }
 
     let s = getActiveSession(); if(!s) s = createSession();
@@ -1134,19 +1591,57 @@
       editingIndex = null;
       document.getElementById('editingBanner').classList.remove('show');
     } else {
-      // Feature #4: include image in message if pending
+      // Check if image editing command
+      const isEdit = isEditingInstruction(text);
+      const hasImageInput = !!pendingImage;
+      const hasImageHistory = s.imageHistory && s.imageHistory.length > 0;
+
+      if (isEdit && (hasImageInput || hasImageHistory)) {
+        if (!config.imageEditModel) {
+          showToast('Fitur edit foto memerlukan IMAGE_EDIT_MODEL yang terkonfigurasi di Settings!', 'error', 5000);
+          return;
+        }
+
+        let imgToEdit = null;
+        if (hasImageInput) {
+          imgToEdit = pendingImage;
+          s.imageHistory = s.imageHistory || [];
+          s.imageHistory.push(pendingImage);
+          pendingImage = null;
+          document.getElementById('attachPreview').style.display = 'none';
+          document.getElementById('attachThumb').src = '';
+        } else {
+          imgToEdit = s.imageHistory[s.imageHistory.length - 1];
+        }
+
+        $textInput.value = ''; $charCounter.textContent = '0 char'; $textInput.style.height = 'auto';
+        await editImage(imgToEdit, text, s);
+        return;
+      }
+
       let msgContent = text;
-      if(pendingImage){
+      let currentFileMetadata = null;
+
+      if (pendingDocumentText) {
+        msgContent = `--- File contents: ${pendingDocumentMetadata.name} ---\n${pendingDocumentText}\n--- end of file ---\n\n${text}`;
+        currentFileMetadata = pendingDocumentMetadata;
+        pendingDocumentText = null;
+        pendingDocumentMetadata = null;
+        document.getElementById('attachPreview').style.display = 'none';
+      } else if (pendingImage) {
         msgContent = [
           { type: 'text', text: text },
           { type: 'image_url', image_url: { url: `data:${pendingImage.mimeType};base64,${pendingImage.base64}` } }
         ];
+        s.imageHistory = s.imageHistory || [];
+        s.imageHistory.push(pendingImage);
         pendingImage = null;
         document.getElementById('attachPreview').style.display = 'none';
         document.getElementById('attachThumb').src = '';
       }
-      s.messages.push({ role: 'user', content: msgContent });
-      if(s.messages.length === 1) s.title = text.slice(0, 40) || 'Gambar';
+
+      s.messages.push({ role: 'user', content: msgContent, fileMetadata: currentFileMetadata });
+      if(s.messages.length === 1) s.title = text.slice(0, 40) || (currentFileMetadata ? currentFileMetadata.name : 'Pesan');
     }
 
     localStorage.setItem(K_SESSIONS, JSON.stringify(sessions));
@@ -1177,6 +1672,72 @@
     503: 'Layanan tidak tersedia — coba lagi nanti (503)',
   };
 
+  // ---------- Brave Search & Tools Definition ----------
+  const searchCache = new Map();
+  const CACHE_TTL = 5 * 60 * 1000;
+
+  async function searchNews(query) {
+    if (!braveApiKey) throw new Error('Brave API Key belum diatur di Settings.');
+    const url = `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(query)}`;
+    const resp = await fetch(url, {
+      headers: { 'X-Subscription-Token': braveApiKey }
+    });
+    if (!resp.ok) throw new Error(`Brave News Search error: ${resp.status}`);
+    return await resp.json();
+  }
+
+  async function searchWeb(query) {
+    if (!braveApiKey) throw new Error('Brave API Key belum diatur di Settings.');
+    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`;
+    const resp = await fetch(url, {
+      headers: { 'X-Subscription-Token': braveApiKey }
+    });
+    if (!resp.ok) throw new Error(`Brave Web Search error: ${resp.status}`);
+    return await resp.json();
+  }
+
+  async function cachedSearch(query, type) {
+    const cacheKey = `${type}:${query.toLowerCase().trim()}`;
+    const now = Date.now();
+    if (searchCache.has(cacheKey)) {
+      const entry = searchCache.get(cacheKey);
+      if (now - entry.timestamp < CACHE_TTL) {
+        return entry.data;
+      }
+    }
+    let data;
+    if (type === 'news') {
+      data = await searchNews(query);
+    } else {
+      data = await searchWeb(query);
+    }
+    searchCache.set(cacheKey, { data, timestamp: now });
+    return data;
+  }
+
+  const webSearchTool = {
+    type: 'function',
+    function: {
+      name: 'web_search',
+      description: 'Cari informasi terbaru dari web atau berita terkini menggunakan Brave Search.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Kata kunci pencarian'
+          },
+          type: {
+            type: 'string',
+            enum: ['news', 'web'],
+            description: 'Tipe pencarian: news untuk berita terkini, web untuk pencarian umum.'
+          }
+        },
+        required: ['query', 'type']
+      }
+    }
+  };
+
   // ---------- Stream ----------
   async function streamAssistantReply(session){
     setStreamingUI(true);
@@ -1184,9 +1745,14 @@
     bubble.classList.add('streaming');
     let fullText = '', reasoningText = '', usageData = null;
     let stoppedByUser = false;
+    let currentSources = [];
 
-    const apiMsgs = config.systemPrompt ? [{role:'system', content:config.systemPrompt}] : [];
-    // Pass full content (string or array) for each message
+    // System instruction injection (A.1)
+    const currentDateTimeStr = new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'long' });
+    const systemPromptBase = config.systemPrompt || '';
+    const systemInstruction = `${systemPromptBase}\n\n[System Info: Current device date and time is ${currentDateTimeStr}].`;
+
+    const apiMsgs = [{ role: 'system', content: systemInstruction }];
     session.messages.forEach(m => apiMsgs.push({ role: m.role, content: m.content }));
 
     const rotKeyCount = (rotConfig.enabled && rotConfig.keys.length > 0) ? rotConfig.keys.length : 0;
@@ -1200,7 +1766,6 @@
           currKey = rotConfig.keys[idx]; currModel = rotConfig.model || config.model;
         }
 
-        // Feature #1: new AbortController per attempt
         streamController = new AbortController();
         const connectTimeout = setTimeout(() => streamController.abort('timeout'), 30000);
 
@@ -1208,6 +1773,10 @@
           const body = { model: currModel, messages: apiMsgs, stream: true };
           if(modelParams.effort && modelParams.effort !== 'off') body.reasoning_effort = modelParams.effort;
           if(modelParams.thinking) body.thinking = true;
+          
+          if (braveApiKey) {
+            body.tools = [webSearchTool];
+          }
 
           const resp = await fetch(config.baseUrl + '/chat/completions', {
             method: 'POST',
@@ -1227,6 +1796,8 @@
           }
 
           const reader = resp.body.getReader(); const decoder = new TextDecoder('utf-8'); let buffer = '';
+          let toolCalls = [];
+
           while(true){
             const {done, value} = await reader.read(); if(done) break;
             buffer += decoder.decode(value, {stream:true});
@@ -1240,6 +1811,20 @@
                 const reasoningDelta = json?.choices?.[0]?.delta?.reasoning_content ?? json?.choices?.[0]?.delta?.reasoning ?? '';
                 if(reasoningDelta) reasoningText += reasoningDelta;
                 if(delta) fullText += delta;
+                
+                const tcList = json?.choices?.[0]?.delta?.tool_calls || json?.choices?.[0]?.message?.tool_calls;
+                if (tcList) {
+                  tcList.forEach(tc => {
+                    const idx = tc.index ?? 0;
+                    if (!toolCalls[idx]) {
+                      toolCalls[idx] = { id: tc.id || '', type: 'function', function: { name: '', arguments: '' } };
+                    }
+                    if (tc.id) toolCalls[idx].id = tc.id;
+                    if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
+                    if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
+                  });
+                }
+
                 if(delta || reasoningDelta){
                   let bHtml = '';
                   if(reasoningText) bHtml += `<details class="thinking-block" open><summary>Pemikiran (Thinking)...</summary><div class="thinking-content">${escapeHtml(reasoningText)}</div></details>`;
@@ -1251,14 +1836,69 @@
               }catch(e){}
             }
           }
+
+          if (toolCalls.length > 0) {
+            const toolCall = toolCalls[0];
+            if (toolCall.function.name === 'web_search') {
+              let args = {};
+              try {
+                args = JSON.parse(toolCall.function.arguments);
+              } catch(e) {}
+              
+              const query = args.query;
+              const type = args.type || 'web';
+              
+              bubble.innerHTML = `<span class="extract-loading">Mencari "${escapeHtml(query)}" via Brave Search...</span>`;
+              
+              let searchResultText = '';
+              let sources = [];
+              
+              try {
+                const data = await cachedSearch(query, type);
+                if (type === 'news') {
+                  const results = data.results || [];
+                  searchResultText = results.map(r => `Title: ${r.title}\nUrl: ${r.url}\nDescription: ${r.description}\nAge: ${r.age || ''}\n---`).join('\n');
+                  sources = results.map(r => ({ title: r.title, url: r.url, date: r.age || '' }));
+                } else {
+                  const results = data.web?.results || [];
+                  searchResultText = results.map(r => `Title: ${r.title}\nUrl: ${r.url}\nDescription: ${r.description}\nAge: ${r.page_age || ''}\n---`).join('\n');
+                  sources = results.map(r => ({ title: r.title, url: r.url, date: r.page_age || '' }));
+                }
+              } catch(err) {
+                searchResultText = `Error during search: ${err.message}`;
+              }
+              
+              currentSources = sources;
+              
+              apiMsgs.push({
+                role: 'assistant',
+                content: null,
+                tool_calls: toolCalls.map(tc => ({
+                  id: tc.id,
+                  type: 'function',
+                  function: { name: tc.function.name, arguments: tc.function.arguments }
+                }))
+              });
+              
+              apiMsgs.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                name: 'web_search',
+                content: searchResultText
+              });
+              
+              toolCalls = [];
+              continue;
+            }
+          }
+
           success = true;
         } catch(err) {
           clearTimeout(connectTimeout);
           if(err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError')){
-            // Feature #1: check if aborted by user or by timeout
             if(streamController.signal.reason === 'user_stop'){
               stoppedByUser = true;
-              success = true; // treat as successful partial — save what we got
+              success = true;
             } else {
               lastError = new Error('Timeout: server tidak merespons dalam 30 detik');
             }
@@ -1273,10 +1913,27 @@
         return;
       }
 
-      // Save streamed content (full or partial if user stopped)
       if(fullText || reasoningText){
         const savedContent = fullText + (stoppedByUser ? ' ▌[dihentikan]' : '');
-        session.messages.push({ role:'assistant', content: savedContent, reasoning: reasoningText });
+        session.messages.push({ 
+          role: 'assistant', 
+          content: savedContent, 
+          reasoning: reasoningText,
+          sources: currentSources.length > 0 ? currentSources : undefined
+        });
+        
+        if (currentSources.length > 0) {
+          const sourcesHtml = `
+            <div class="sources-list">
+              <div class="sources-header">Referensi:</div>
+              <ol>
+                ${currentSources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a> ${s.date ? `(${escapeHtml(s.date)})` : ''}</li>`).join('')}
+              </ol>
+            </div>
+          `;
+          bubble.innerHTML += sourcesHtml;
+        }
+
         const usage = ensureUsage(session);
         if(usageData){
           usage.inputTokens  += usageData.prompt_tokens||0;
