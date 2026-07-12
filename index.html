@@ -136,6 +136,84 @@
   .msg-action-btn:hover{ border-color:var(--text-dim); color:var(--text); background:var(--panel-2); }
   .msg-action-btn:active{ transform:scale(0.95); }
 
+  /* ---- Table styling ---- */
+  .bubble .table-wrapper {
+    overflow-x: auto;
+    margin: 10px 0;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+  .bubble table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 320px;
+    background: var(--panel);
+  }
+  .bubble thead tr {
+    background: linear-gradient(135deg, var(--accent-dim), color-mix(in srgb, var(--accent-dim) 60%, var(--panel)));
+  }
+  .bubble th {
+    padding: 9px 14px;
+    text-align: left;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--accent-bright);
+    border-bottom: 2px solid var(--accent-dim);
+    white-space: nowrap;
+  }
+  .bubble td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line);
+    color: var(--text);
+    vertical-align: top;
+    line-height: 1.45;
+  }
+  .bubble tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .bubble tbody tr:nth-child(even) {
+    background: rgba(255,255,255,0.025);
+  }
+  body.light-theme .bubble tbody tr:nth-child(even),
+  body.theme-light .bubble tbody tr:nth-child(even) {
+    background: rgba(0,0,0,0.03);
+  }
+  .bubble tbody tr:hover td {
+    background: color-mix(in srgb, var(--accent-dim) 12%, transparent);
+    transition: background 0.15s ease;
+  }
+  /* Table caption bar with row count + CSV button */
+  .table-caption-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .table-csv-btn {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .table-csv-btn:hover { border-color: var(--accent); color: var(--accent-bright); background: color-mix(in srgb, var(--accent-dim) 15%, transparent); }
+  .table-csv-btn:active { transform: scale(0.95); }
+
   /* Thinking Block styling */
   .thinking-block {
     background: var(--panel-2);
@@ -774,6 +852,8 @@
   // ---------- Feature #2: Configure marked + highlight.js ----------
   if (typeof marked !== 'undefined') {
     marked.use({
+      gfm: true,
+      breaks: false,
       renderer: {
         code({ text, lang }) {
           if (typeof hljs !== 'undefined') {
@@ -1192,6 +1272,7 @@
   }
 
   function postProcessMessages() {
+    // 1. Code block copy buttons
     $messages.querySelectorAll('.bubble pre').forEach(pre => {
       if (pre.querySelector('.code-copy-btn')) return;
       const btn = document.createElement('button');
@@ -1204,6 +1285,54 @@
         copyToClipboard(codeText, () => { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); });
       });
       pre.appendChild(btn);
+    });
+
+    // 2. Table enhancements: wrap in scroll div + caption bar + CSV copy
+    $messages.querySelectorAll('.bubble table').forEach(table => {
+      if (table.closest('.table-wrapper')) return; // already processed
+
+      // Count rows (excluding header)
+      const rowCount = table.querySelectorAll('tbody tr').length;
+      const colCount = table.querySelectorAll('thead th').length || table.querySelectorAll('tr:first-child td').length;
+
+      // Caption bar
+      const captionBar = document.createElement('div');
+      captionBar.className = 'table-caption-bar';
+      const info = document.createElement('span');
+      info.textContent = `📊 ${rowCount} baris · ${colCount} kolom`;
+
+      const csvBtn = document.createElement('button');
+      csvBtn.className = 'table-csv-btn';
+      csvBtn.textContent = '⬇ CSV';
+      csvBtn.addEventListener('click', () => {
+        // Build CSV from table
+        const rows = [];
+        table.querySelectorAll('tr').forEach(tr => {
+          const cells = [...tr.querySelectorAll('th, td')];
+          const line = cells.map(c => {
+            let val = c.textContent.replace(/"/g, '""');
+            return `"${val}"`;
+          }).join(',');
+          rows.push(line);
+        });
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `tabel_${Date.now()}.csv`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        csvBtn.textContent = '✓ Tersimpan!';
+        setTimeout(() => csvBtn.textContent = '⬇ CSV', 2000);
+      });
+
+      captionBar.appendChild(info);
+      captionBar.appendChild(csvBtn);
+
+      // Wrapper
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-wrapper';
+      table.parentNode.insertBefore(wrapper, table);
+      wrapper.appendChild(captionBar);
+      wrapper.appendChild(table);
     });
   }
 
