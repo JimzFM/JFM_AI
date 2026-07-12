@@ -1035,7 +1035,7 @@
           <div class="sources-list">
             <div class="sources-header">Referensi:</div>
             <ol>
-              ${sources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a> ${s.date ? `(${escapeHtml(s.date)})` : ''}</li>`).join('')}
+              ${sources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a></li>`).join('')}
             </ol>
           </div>
         `;
@@ -1702,13 +1702,16 @@
         const connectTimeout = setTimeout(() => streamController.abort('timeout'), 45000);
 
         try {
-          const isGeminiGrounding = currModel.includes('gemini-3.1-flash-lite') || currModel.includes('gemini-2.5-flash-lite');
+          // Detect native Gemini endpoint by URL (supports all Gemini models, not just specific names)
+          const isGeminiEndpoint = !config.baseUrl || config.baseUrl.includes('generativelanguage.googleapis.com');
+          const isGeminiGrounding = isGeminiEndpoint;
           
           let fetchUrl, headers, body;
           
           if (isGeminiGrounding) {
-            const base = config.baseUrl ? config.baseUrl.replace(/\/chat\/completions$/, '') : 'https://generativelanguage.googleapis.com/v1beta';
-            fetchUrl = `${base}/models/${currModel}:streamGenerateContent?key=${currKey}&alt=sse`;
+            // Always use the canonical Gemini REST base, ignore any OpenAI-compat baseUrl
+            const geminiBase = 'https://generativelanguage.googleapis.com/v1beta';
+            fetchUrl = `${geminiBase}/models/${currModel}:streamGenerateContent?key=${currKey}&alt=sse`;
             
             headers = { 'Content-Type': 'application/json' };
             
@@ -1790,14 +1793,14 @@
                                    errText.toLowerCase().includes('credit') ||
                                    resp.status === 402;
                                    
-            if (isBillingError && currModel.includes('gemini-3.1-flash-lite')) {
-              console.log('Billing/quota error on gemini-3.1-flash-lite. Retrying with gemini-2.5-flash-lite...');
-              currModel = 'gemini-2.5-flash-lite';
-              config.model = 'gemini-2.5-flash-lite';
+            if (isBillingError && (currModel.includes('gemini-3.1-flash-lite') || currModel.includes('gemini-3.1'))) {
+              // gemini-3.1-flash-lite may require billing for search grounding.
+              // Fall back to gemini-2.0-flash-lite which is available on the free tier.
+              console.log(`Billing/quota error on ${currModel}. Retrying with gemini-2.0-flash-lite...`);
+              currModel = 'gemini-2.0-flash-lite';
+              config.model = 'gemini-2.0-flash-lite';
               localStorage.setItem(K_CFG, JSON.stringify(config));
               renderModelLabel();
-              
-              streamController.abort('retry');
               continue;
             }
 
@@ -1864,6 +1867,7 @@
 
           success = true;
         } catch(err) {
+          clearTimeout(connectTimeout);
           if (err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError')) {
             if (streamController.signal.reason === 'retry') {
               continue;
@@ -1872,10 +1876,10 @@
               stoppedByUser = true;
               success = true;
             } else {
-              lastError = new Error('Timeout: server tidak merespons dalam 30 detik');
+              lastError = new Error('Timeout: server tidak merespons dalam 45 detik');
             }
           } else { lastError = err; }
-          break;
+          if (!success) break;
         }
       }
 
@@ -1897,9 +1901,9 @@
         if (currentSources.length > 0) {
           const sourcesHtml = `
             <div class="sources-list">
-              <div class="sources-header">Referensi:</div>
+              <div class="sources-header">🔍 Referensi dari Google Search:</div>
               <ol>
-                ${currentSources.slice(0, 5).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a></li>`).join('')}
+                ${currentSources.slice(0, 8).map(s => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a></li>`).join('')}
               </ol>
             </div>
           `;

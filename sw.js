@@ -1,5 +1,5 @@
 const CACHE_NAME = 'relay-cache-v5';
-// Bumped to v5: force client update to clear Brave search UI leftovers
+// Bumped to v5: force client update to pick up latest changes
 const ASSETS = [
   './index.html',
   './manifest.json',
