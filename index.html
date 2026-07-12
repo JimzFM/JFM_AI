@@ -1686,13 +1686,16 @@
 
     const rotKeyCount = (rotConfig.enabled && rotConfig.keys.length > 0) ? rotConfig.keys.length : 0;
     let rotationsUsed = 0, success = false, lastError = null;
+    let currKey = null, currModel = null;
 
     try {
       while(!success){
-        let currKey = config.apiKey, currModel = config.model;
-        if(rotConfig.enabled && rotConfig.keys.length > 0){
-          const idx = (rotConfig.currentIndex ?? 0) % rotConfig.keys.length;
-          currKey = rotConfig.keys[idx]; currModel = rotConfig.model || config.model;
+        if (!currModel) {
+          currKey = config.apiKey; currModel = config.model;
+          if(rotConfig.enabled && rotConfig.keys.length > 0){
+            const idx = (rotConfig.currentIndex ?? 0) % rotConfig.keys.length;
+            currKey = rotConfig.keys[idx]; currModel = rotConfig.model || config.model;
+          }
         }
 
         streamController = new AbortController();
@@ -1801,7 +1804,7 @@
             if(resp.status === 429 && rotKeyCount > 0 && rotationsUsed < rotKeyCount - 1){
               rotConfig.currentIndex = (rotConfig.currentIndex + 1) % rotConfig.keys.length;
               localStorage.setItem(K_ROT, JSON.stringify(rotConfig));
-              rotationsUsed++; continue;
+              rotationsUsed++; currModel = null; continue;
             }
             throw new Error(errText || HTTP_ERRORS[resp.status] || `HTTP ${resp.status}`);
           }

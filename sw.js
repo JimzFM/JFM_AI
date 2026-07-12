@@ -1,5 +1,5 @@
-const CACHE_NAME = 'relay-cache-v4';
-// Bumped to v4: adds highlight.js CSS + JS assets
+const CACHE_NAME = 'relay-cache-v5';
+// Bumped to v5: force client update to clear Brave search UI leftovers
 const ASSETS = [
   './index.html',
   './manifest.json',
