@@ -26,6 +26,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- DOMPurify for sanitizing marked.js HTML output -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
 <style>
   :root{
     --bg:#0d0f0e; --panel:#141715; --panel-2:#191d1a; --line:#262b27;
@@ -1130,6 +1132,7 @@
       if(reasoning) html += `<details class="thinking-block"><summary>Pemikiran (Thinking)</summary><div class="thinking-content">${escapeHtml(reasoning)}</div></details>`;
       const text = getTextContent(content);
       html += typeof marked !== 'undefined' ? marked.parse(text) : escapeHtml(text);
+      if(typeof DOMPurify !== 'undefined') { html = DOMPurify.sanitize(html); }
       bubble.innerHTML = html;
 
       // Render references (B.6)
@@ -2188,7 +2191,11 @@
                 if(delta || reasoningDelta){
                   let bHtml = '';
                   if(reasoningText) bHtml += `<details class="thinking-block" open><summary>Pemikiran (Thinking)...</summary><div class="thinking-content">${escapeHtml(reasoningText)}</div></details>`;
-                  if(fullText) bHtml += typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
+                  if(fullText) {
+                    let textHtml = typeof marked !== 'undefined' ? marked.parse(fullText) : escapeHtml(fullText);
+                    if(typeof DOMPurify !== 'undefined') { textHtml = DOMPurify.sanitize(textHtml); }
+                    bHtml += textHtml;
+                  }
                   bubble.innerHTML = bHtml;
                   requestAnimationFrame(() => { $messages.scrollTop = $messages.scrollHeight; });
                 }
