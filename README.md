@@ -100,4 +100,4 @@ monitor.py                       Pemantau status workflow GitHub Actions
 
 ## Lisensi
 
-Lisensi belum ditentukan. Tambahkan file `LICENSE` sebelum memakai atau menerima kontribusi pihak lain.
+[MIT](LICENSE) © 2026 JimzFM.
