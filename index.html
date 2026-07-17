@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jimz_AI</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://generativelanguage.googleapis.com https://api.allorigins.win https://corsproxy.io https://api.codetabs.com; img-src 'self' data: blob: https:; connect-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; worker-src 'self' blob:;">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d0f0e">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,12 +23,19 @@
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"
         integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
         crossorigin="anonymous"></script>
-<!-- PDF, DOCX, XLSX extraction libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<!-- PDF, DOCX, XLSX extraction libraries (pdf.js bumped 3.4.120 -> 4.10.38 for security) -->
+<script type="module">
+  // Load pdf.js 4.x as ESM (legacy UMD dropped) and expose globals used by the app.
+  import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- DOMPurify for sanitizing marked.js HTML output -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+<!-- DOMPurify bumped 3.0.9 -> 3.3.1 (fixes CVE-2024-47875 mXSS) -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.1/dist/purify.min.js"
+        integrity="sha384-80VlBZnyAwkkqtSfg5NhPyZff6nU4K/qniLBL8Jnm4KDv6jZhLiYtJbhglg/i9ww"
+        crossorigin="anonymous"></script>
 <style>
   :root{
     --bg:#0d0f0e; --panel:#141715; --panel-2:#191d1a; --line:#262b27;
@@ -1459,7 +1467,6 @@
         try {
           const typedarray = new Uint8Array(this.result);
           if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
             const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
             let text = '';
             for (let i = 1; i <= pdf.numPages; i++) {
@@ -1670,17 +1677,17 @@
         }
       };
       
-      let editUrl;
-      if (config.baseUrl && config.baseUrl.includes('generativelanguage.googleapis.com')) {
-        const base = config.baseUrl.replace(/\/chat\/completions$/, '');
-        editUrl = `${base}/models/${imageEditModel}:generateContent?key=${config.apiKey}`;
-      } else {
-        const base = config.baseUrl ? config.baseUrl.replace(/\/chat\/completions$/, '') : 'https://generativelanguage.googleapis.com/v1beta';
-        editUrl = `${base}/models/${imageEditModel}:generateContent?key=${config.apiKey}`;
-      }
-      
+      // SECURITY: API key passed via x-goog-api-key header, NOT URL query (avoids logging in proxies/server logs).
+      const isGeminiBase = (config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').includes('generativelanguage.googleapis.com');
+      const editBase = isGeminiBase
+        ? (config.baseUrl ? config.baseUrl.replace(/\/chat\/completions$/, '') : 'https://generativelanguage.googleapis.com/v1beta')
+        : (config.baseUrl ? config.baseUrl.replace(/\/chat\/completions$/, '') : 'https://generativelanguage.googleapis.com/v1beta');
+      const editUrl = `${editBase}/models/${imageEditModel}:generateContent`;
+
       const headers = { 'Content-Type': 'application/json' };
-      if (config.baseUrl && !config.baseUrl.includes('generativelanguage.googleapis.com')) {
+      if (isGeminiBase) {
+        headers['x-goog-api-key'] = config.apiKey;
+      } else {
         headers['Authorization'] = 'Bearer ' + config.apiKey;
       }
       
@@ -2045,9 +2052,9 @@
           if (isGeminiGrounding) {
             // Always use the canonical Gemini REST base, ignore any OpenAI-compat baseUrl
             const geminiBase = 'https://generativelanguage.googleapis.com/v1beta';
-            fetchUrl = `${geminiBase}/models/${currModel}:streamGenerateContent?key=${currKey}&alt=sse`;
-            
-            headers = { 'Content-Type': 'application/json' };
+            // SECURITY: API key via x-goog-api-key header, NOT URL query (avoids logging).
+            fetchUrl = `${geminiBase}/models/${currModel}:streamGenerateContent?alt=sse`;
+            headers = { 'Content-Type': 'application/json', 'x-goog-api-key': currKey };
             
             const contents = [];
             let nativeSystemInstruction = null;
@@ -2101,7 +2108,7 @@
             if(modelParams.thinking) body.thinking = true;
           }
 
-          console.log(`[JFM_AI] Outgoing Request Body for ${currModel}:`, JSON.stringify(body, null, 2));
+          // SECURITY: do not log full request body — leaks chat history & system prompt.
 
           const resp = await fetch(fetchUrl, {
             method: 'POST',
