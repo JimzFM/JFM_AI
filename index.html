@@ -1913,7 +1913,11 @@
         const lastUserBubble = $messages.querySelectorAll('.msg-row.user .bubble');
         const userBubble = lastUserBubble[lastUserBubble.length - 1];
         const fetchCards = [];
-        for (const url of detectedUrls.slice(0, 3)) { // max 3 URLs
+        const urlsToFetch = detectedUrls.slice(0, 3);
+        if (detectedUrls.length > urlsToFetch.length) {
+          showToast(`Hanya 3 dari ${detectedUrls.length} URL pertama yang diproses.`, 'error', 4000);
+        }
+        for (const url of urlsToFetch) { // max 3 URLs
           const card = document.createElement('div');
           card.className = 'url-fetch-card fetching';
           card.innerHTML = `<span class="url-icon">🌐</span><span class="url-label">Mengambil: ${escapeHtml(url)}</span>`;
@@ -2040,7 +2044,11 @@
         }
 
         streamController = new AbortController();
-        const connectTimeout = setTimeout(() => streamController.abort('timeout'), 45000);
+        let streamTimeout = setTimeout(() => streamController.abort('timeout'), 45000);
+        const resetStreamTimeout = () => {
+          clearTimeout(streamTimeout);
+          streamTimeout = setTimeout(() => streamController.abort('timeout'), 45000);
+        };
 
         try {
           // Detect native Gemini endpoint by URL (supports all Gemini models, not just specific names)
@@ -2116,7 +2124,7 @@
             body: JSON.stringify(body),
             signal: streamController.signal
           });
-          clearTimeout(connectTimeout);
+          resetStreamTimeout();
 
           if(!resp.ok){
             let errText = '';
@@ -2157,6 +2165,7 @@
 
           while(true){
             const {done, value} = await reader.read(); if(done) break;
+            resetStreamTimeout();
             buffer += decoder.decode(value, {stream:true});
             const lines = buffer.split('\n'); buffer = lines.pop();
             for(const line of lines){
@@ -2210,9 +2219,10 @@
             }
           }
 
+          clearTimeout(streamTimeout);
           success = true;
         } catch(err) {
-          clearTimeout(connectTimeout);
+          clearTimeout(streamTimeout);
           if (err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError')) {
             if (streamController.signal.reason === 'retry') {
               continue;

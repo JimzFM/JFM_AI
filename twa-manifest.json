@@ -1,5 +1,5 @@
 {
-  "twaHost": "jimzfm.github.io",
+  "host": "jimzfm.github.io",
   "webManifestUrl": "https://jimzfm.github.io/JFM_AI/manifest.json",
   "startUrl": "/JFM_AI/index.html",
   "packageId": "com.jimzfm.jfmai",

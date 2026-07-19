@@ -20,37 +20,21 @@ jobs:
             echo "Decoding signing key from secrets..."
             echo "$ANDROID_KEYSTORE_B64" | base64 -d > ./android.keystore
           else
-            echo "No signing key found in secrets. Generating a temporary key..."
-            keytool -genkeypair -v -keystore ./android.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$KEYSTORE_PASSWORD" \
-              -keypass "$KEYSTORE_PASSWORD" \
-              -dname "CN=JFM, OU=JFM, O=JFM, L=City, S=State, C=US"
-            
-            echo "=========================================================================="
-            echo "   ACTION REQUIRED: SAVE THIS KEYSTORE TO YOUR GITHUB SECRETS"
-            echo "=========================================================================="
-            echo "To keep signing your app with the same key (required for updates), copy the"
-            echo "Base64 block below and save it as a Secret named ANDROID_KEYSTORE."
-            echo "Also save the password as a Secret named KEYSTORE_PASSWORD (default is 'android_password')."
-            echo ""
-            echo "=== START BASE64 ENCODED KEYSTORE ==="
-            base64 -w0 ./android.keystore
-            echo ""
-            echo "=== END BASE64 ENCODED KEYSTORE ==="
-            echo "=========================================================================="
+            echo "ANDROID_KEYSTORE secret is required for a reproducible, updateable APK." >&2
+            exit 1
           fi
 
       - name: Build TWA and APK via Bubblewrap Docker
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'android_password' }}
         run: |
-          # Use official Bubblewrap Docker container, answer "y" to regenerate project, and skip version upgrade prompts
+          # Pin Bubblewrap to keep APK builds reproducible.
           docker run --rm \
             -v ${{ github.workspace }}:/project \
             -w /project \
             --env KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
             --entrypoint /bin/bash \
-            ghcr.io/googlechromelabs/bubblewrap:latest \
+            ghcr.io/googlechromelabs/bubblewrap:1.22.2 \
             -c "echo 'y' | bubblewrap update --skip-pwa-validation --skipVersionUpgrade && bubblewrap build --skip-pwa-validation --storepass \$KEYSTORE_PASSWORD --keypass \$KEYSTORE_PASSWORD"
 
       - name: Upload APK Artifact
